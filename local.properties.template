@@ -1,0 +1,11 @@
+# Copy this file to local.properties and fill in your values.
+# local.properties is git-ignored and loaded automatically by Maven when running integration tests:
+#   mvn verify -Pintegration-test
+
+# Google Cloud project ID (the default variable recognised by the GCloud SDK and Java client libraries)
+GOOGLE_CLOUD_PROJECT=fh-test-414003
+
+# Path to a service-account JSON key file.
+# Omit (leave commented) to use Application Default Credentials (ADC).
+# ADC works automatically when you are authenticated via: gcloud auth application-default login
+# GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa-key.json

@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Google Cloud Logging Reporter",
+  "description": "Reports API gateway metrics, logs and health checks to Google Cloud Logging",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "title": "Enabled",
+      "description": "Activate the Google Cloud Logging reporter"
+    },
+    "projectId": {
+      "type": "string",
+      "title": "GCP Project ID",
+      "description": "Google Cloud project ID. Omit to use the value from the GOOGLE_CLOUD_PROJECT environment variable or metadata server."
+    },
+    "logName": {
+      "type": "string",
+      "default": "gravitee-gateway",
+      "title": "Log name",
+      "description": "Cloud Logging log name under which entries are written"
+    },
+    "resource": {
+      "type": "object",
+      "title": "Monitored Resource",
+      "properties": {
+        "type": {
+          "type": "string",
+          "default": "global",
+          "title": "Resource type",
+          "description": "Monitored resource type, e.g. global, gce_instance, k8s_container"
+        },
+        "labels": {
+          "type": "object",
+          "title": "Resource labels",
+          "description": "Key/value labels attached to the MonitoredResource",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "credentialsFile": {
+      "type": "string",
+      "title": "Service Account credentials file",
+      "description": "Absolute path to a service-account JSON key file. Omit to use Application Default Credentials (ADC)."
+    },
+    "captureErrors": {
+      "type": "boolean",
+      "default": true,
+      "title": "Capture HTTP errors",
+      "description": "Set log severity to ERROR for HTTP 5xx responses, WARNING for 4xx"
+    },
+    "reportHealthChecks": {
+      "type": "boolean",
+      "default": true,
+      "title": "Report health checks",
+      "description": "Write a log entry on each endpoint health-check state transition"
+    },
+    "reportLogs": {
+      "type": "boolean",
+      "default": false,
+      "title": "Report full request/response logs",
+      "description": "Write a log entry containing full request and response headers and bodies (high volume — disabled by default)"
+    },
+    "reportMessageMetrics": {
+      "type": "boolean",
+      "default": true,
+      "title": "Report message metrics",
+      "description": "Write a log entry for async message metrics from event-driven APIs"
+    },
+    "reportMonitor": {
+      "type": "boolean",
+      "default": false,
+      "title": "Report node monitor",
+      "description": "Write a log entry for gateway node monitor events"
+    },
+    "tracePrefix": {
+      "type": "string",
+      "title": "Trace prefix",
+      "description": "Optional prefix for the trace field, e.g. projects/my-project/traces/"
+    }
+  }
+}
