@@ -24,7 +24,9 @@
   </appender>
 
   <!-- Container stdout/stderr forwarded via Slf4jLogConsumer — keep at ERROR to reduce noise -->
-  <logger name="tc" level="ERROR"/>
+  <logger name="tc.httpbin" level="INFO"/>
+  <logger name="tc.management-api" level="ERROR"/>
+  <logger name="tc.gatway" level="INFO"/>
 
   <!-- Testcontainers internals — suppress wire noise -->
   <logger name="org.testcontainers" level="INFO"/>
@@ -32,7 +34,7 @@
   <logger name="org.apache.hc" level="INFO"/>
 
   <!-- Plugin under test -->
-  <logger name="io.gravitee.reporter.gcloud" level="INFO"/>
+  <logger name="io.gravitee.reporter.gcloud" level="DEBUG"/>
 
   <root level="WARN">
     <appender-ref ref="CONSOLE"/>

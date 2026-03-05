@@ -95,7 +95,10 @@ class GCloudReporterIT {
 
   @BeforeAll
   static void startInfrastructure() throws Exception {
-    gcpProjectId = System.getProperty("GOOGLE_CLOUD_PROJECT");
+    gcpProjectId = System.getProperty(
+      "GOOGLE_CLOUD_PROJECT",
+      System.getenv("GOOGLE_CLOUD_PROJECT")
+    );
     String credentialsFile = System.getProperty(
       "GOOGLE_APPLICATION_CREDENTIALS",
       System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -184,7 +187,7 @@ class GCloudReporterIT {
       .withEnv("gravitee_reporters_gcloud_resource_type", "global")
       .withEnv("gravitee_reporters_gcloud_captureerrors", "true")
       .withEnv("gravitee_reporters_gcloud_reporthealthchecks", "false")
-      .withEnv("gravitee_reporters_gcloud_reportlogs", "false")
+      .withEnv("gravitee_reporters_gcloud_reportlogs", "true")
       .withEnv("gravitee_reporters_gcloud_reportmessagemetrics", "false")
       .dependsOn(managementApi)
       .withLogConsumer(

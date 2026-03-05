@@ -276,10 +276,6 @@
     <profiles>
         <profile>
             <id>integration-test</id>
-            <properties>
-                <GOOGLE_CLOUD_PROJECT>${env.GOOGLE_CLOUD_PROJECT}</GOOGLE_CLOUD_PROJECT>
-                <GOOGLE_APPLICATION_CREDENTIALS>${env.GOOGLE_APPLICATION_CREDENTIALS}</GOOGLE_APPLICATION_CREDENTIALS>
-            </properties>
             <build>
                 <plugins>
                     <plugin>
