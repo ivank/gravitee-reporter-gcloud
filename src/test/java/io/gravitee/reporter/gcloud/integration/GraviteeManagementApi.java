@@ -23,36 +23,26 @@ import retrofit2.http.POST;
 import retrofit2.http.Path;
 
 /**
- * Retrofit2 interface for the Gravitee APIM Management REST API.
- * Scoped to the DEFAULT organisation and environment.
+ * Retrofit2 interface for the Gravitee APIM Management REST API (v2).
+ * Scoped to the DEFAULT organisation and environment via the base URL.
  */
 interface GraviteeManagementApi {
-  @POST("management/organizations/DEFAULT/environments/DEFAULT/apis")
+  @POST("apis")
   Call<JsonNode> createApi(@Body RequestBody body);
 
-  @POST(
-    "management/organizations/DEFAULT/environments/DEFAULT/apis/{apiId}/plans"
-  )
-  Call<JsonNode> createPlan(
-    @Path("apiId") String apiId,
+  @POST("apis/{id}/plans")
+  Call<JsonNode> createPlan(@Path("id") String apiId, @Body RequestBody body);
+
+  @POST("apis/{id}/plans/{planId}/_publish")
+  Call<Void> publishPlan(
+    @Path("id") String apiId,
+    @Path("planId") String planId,
     @Body RequestBody body
   );
 
-  @POST(
-    "management/organizations/DEFAULT/environments/DEFAULT/apis/{apiId}/plans/{planId}/_publish"
-  )
-  Call<Void> publishPlan(
-    @Path("apiId") String apiId,
-    @Path("planId") String planId
-  );
+  @POST("apis/{id}/_start")
+  Call<Void> startApi(@Path("id") String apiId, @Body RequestBody body);
 
-  @POST(
-    "management/organizations/DEFAULT/environments/DEFAULT/apis/{apiId}/_start"
-  )
-  Call<Void> startApi(@Path("apiId") String apiId);
-
-  @POST(
-    "management/organizations/DEFAULT/environments/DEFAULT/apis/{apiId}/deployments"
-  )
-  Call<Void> deployApi(@Path("apiId") String apiId);
+  @POST("apis/{id}/deployments")
+  Call<Void> deployApi(@Path("id") String apiId, @Body RequestBody body);
 }

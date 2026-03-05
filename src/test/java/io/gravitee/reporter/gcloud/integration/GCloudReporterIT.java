@@ -34,6 +34,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MongoDBContainer;
@@ -68,6 +69,9 @@ import org.testcontainers.utility.MountableFile;
 @Tag("integration")
 class GCloudReporterIT {
 
+  private static final Logger log = LoggerFactory.getLogger(
+    GCloudReporterIT.class
+  );
   private static final String LOG_NAME = "gravitee-gateway";
 
   private static final Network NETWORK = Network.newNetwork();
@@ -91,7 +95,7 @@ class GCloudReporterIT {
 
   @BeforeAll
   static void startInfrastructure() throws Exception {
-    gcpProjectId = resolveRequired("GOOGLE_CLOUD_PROJECT");
+    gcpProjectId = System.getProperty("GOOGLE_CLOUD_PROJECT");
     String credentialsFile = System.getProperty(
       "GOOGLE_APPLICATION_CREDENTIALS",
       System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -190,9 +194,15 @@ class GCloudReporterIT {
         Wait.forHttp("/_node/health").forPort(18082).forStatusCode(200)
       );
 
+    log.info("GCloud IT — project: {}", gcpProjectId);
+
     // Mount credentials file if provided; otherwise ADC inside container uses metadata server.
     // For local dev with ADC, mount the well-known ADC file.
     if (credentialsFile != null && !credentialsFile.isBlank()) {
+      log.info(
+        "GCloud IT — credentials: service-account key file at {}",
+        credentialsFile
+      );
       gw = gw
         .withCopyFileToContainer(
           MountableFile.forHostPath(credentialsFile),
@@ -208,9 +218,17 @@ class GCloudReporterIT {
         "application_default_credentials.json"
       );
       if (adcPath.toFile().exists()) {
+        log.info(
+          "GCloud IT — credentials: Application Default Credentials from {}",
+          adcPath
+        );
         gw = gw.withCopyFileToContainer(
           MountableFile.forHostPath(adcPath.toString()),
           "/root/.config/gcloud/application_default_credentials.json"
+        );
+      } else {
+        log.info(
+          "GCloud IT — credentials: none found locally, relying on GCE metadata server"
         );
       }
     }
@@ -404,22 +422,5 @@ class GCloudReporterIT {
     LogEntry entry = entries.get(0);
     assertThat(entry.getTrace()).contains(transactionId);
     assertThat(entry.getSpanId()).isNotNull().isNotBlank();
-  }
-
-  // ===== helpers =====
-
-  private static String resolveRequired(String name) {
-    String value = System.getProperty(name);
-    if (value == null || value.isBlank() || value.startsWith("${")) {
-      value = System.getenv(name);
-    }
-    assertThat(value)
-      .as(
-        "Required property/env var '%s' is not set. Add it to local.properties or set it as an env var.",
-        name
-      )
-      .isNotNull()
-      .isNotBlank();
-    return value;
   }
 }

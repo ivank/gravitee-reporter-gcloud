@@ -28,8 +28,8 @@ import retrofit2.Retrofit;
 import retrofit2.converter.jackson.JacksonConverterFactory;
 
 /**
- * Drives the Gravitee APIM Management REST API to create and fully deploy a V4 HTTP proxy API
- * during integration test setup. Executes five sequential steps:
+ * Drives the Gravitee APIM Management REST API (v2) to create and fully deploy a V4 HTTP proxy
+ * API during integration test setup. Executes five sequential steps:
  * create → create plan → publish plan → start → deploy.
  */
 class ManagementApiHelper {
@@ -40,6 +40,9 @@ class ManagementApiHelper {
   private static final MediaType JSON = MediaType.get(
     "application/json; charset=utf-8"
   );
+  private static final String ORG_ENV =
+    "management/v2/organizations/DEFAULT/environments/DEFAULT/";
+  private static final RequestBody EMPTY = RequestBody.create(JSON, "{}");
 
   private final GraviteeManagementApi api;
 
@@ -60,8 +63,9 @@ class ManagementApiHelper {
       )
       .build();
 
+    String base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
     this.api = new Retrofit.Builder()
-      .baseUrl(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/")
+      .baseUrl(base + ORG_ENV)
       .client(client)
       .addConverterFactory(JacksonConverterFactory.create())
       .build()
@@ -84,16 +88,20 @@ class ManagementApiHelper {
         "apiVersion": "1.0.0",
         "definitionVersion": "V4",
         "type": "PROXY",
+        "description": "Integration test API for gravitee-reporter-gcloud",
         "listeners": [{
           "type": "HTTP",
-          "paths": [{"path": "%s"}]
+          "paths": [{"path": "%s"}],
+          "entrypoints": [{"type": "http-proxy"}]
         }],
         "endpointGroups": [{
           "name": "default",
           "type": "http-proxy",
           "endpoints": [{
-            "name": "default",
+            "name": "main",
             "type": "http-proxy",
+            "weight": 1,
+            "inheritConfiguration": false,
             "configuration": {"target": "%s"}
           }]
         }]
@@ -108,11 +116,9 @@ class ManagementApiHelper {
     // Step 2: create keyless plan
     String planBody = """
       {
-        "name": "Keyless",
+        "name": "Default Plan",
         "definitionVersion": "V4",
-        "security": {"type": "KEY_LESS"},
-        "mode": "STANDARD",
-        "status": "STAGING"
+        "security": {"type": "KEY_LESS"}
       }
       """;
     Response<JsonNode> planResp = api
@@ -123,15 +129,17 @@ class ManagementApiHelper {
     log.info("Created plan id={}", planId);
 
     // Step 3: publish plan
-    Response<Void> publishResp = api.publishPlan(apiId, planId).execute();
+    Response<Void> publishResp = api
+      .publishPlan(apiId, planId, EMPTY)
+      .execute();
     assertOk("publishPlan", publishResp);
 
     // Step 4: start API
-    Response<Void> startResp = api.startApi(apiId).execute();
+    Response<Void> startResp = api.startApi(apiId, EMPTY).execute();
     assertOk("startApi", startResp);
 
     // Step 5: deploy API
-    Response<Void> deployResp = api.deployApi(apiId).execute();
+    Response<Void> deployResp = api.deployApi(apiId, EMPTY).execute();
     assertOk("deployApi", deployResp);
 
     log.info("API '{}' deployed successfully (id={})", name, apiId);
