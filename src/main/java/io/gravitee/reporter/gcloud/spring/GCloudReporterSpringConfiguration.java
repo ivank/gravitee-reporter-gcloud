@@ -128,8 +128,12 @@ public class GCloudReporterSpringConfiguration {
     if (cfg.getProjectId() != null && !cfg.getProjectId().isBlank()) {
       return cfg.getProjectId();
     }
+    String envProject = System.getenv("GOOGLE_CLOUD_PROJECT");
+    if (envProject != null && !envProject.isBlank()) {
+      return envProject;
+    }
     throw new IllegalStateException(
-      "GCloud reporter: reporters.gcloud.projectid must be set in gravitee.yml"
+      "GCloud reporter: set reporters.gcloud.projectid in gravitee.yml or GOOGLE_CLOUD_PROJECT env var"
     );
   }
 }

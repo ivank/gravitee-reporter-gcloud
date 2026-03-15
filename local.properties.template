@@ -3,7 +3,7 @@
 #   mvn verify -Pintegration-test
 
 # Google Cloud project ID (the default variable recognised by the GCloud SDK and Java client libraries)
-GOOGLE_CLOUD_PROJECT=fh-test-414003
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 
 # Path to a service-account JSON key file.
 # Omit (leave commented) to use Application Default Credentials (ADC).
