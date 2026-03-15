@@ -61,10 +61,12 @@ import org.testcontainers.utility.MountableFile;
  *       appear in Cloud Logging with the correct severity, HttpRequest fields, and trace data.</li>
  * </ol>
  *
- * <p><b>Prerequisites:</b> Docker running, {@code GOOGLE_CLOUD_PROJECT} env var set (or in
- * {@code local.properties}), and valid Application Default Credentials or
- * {@code GOOGLE_APPLICATION_CREDENTIALS} pointing to a service-account key with
- * {@code roles/logging.logWriter} and {@code roles/logging.viewer}.
+ * <p><b>Prerequisites:</b> Docker running, {@code GOOGLE_CLOUD_PROJECT} env var (or
+ * {@code local.properties}) used by the test harness to resolve the project ID, and valid
+ * Application Default Credentials or {@code GOOGLE_APPLICATION_CREDENTIALS} pointing to a
+ * service-account key with {@code roles/logging.logWriter} and {@code roles/logging.viewer}.
+ * The gateway plugin reads the project ID from {@code reporters.gcloud.projectid}
+ * (passed via {@code gravitee_reporters_gcloud_projectid} env var on the container).
  *
  * <p>Run with: {@code mvn clean verify -Pintegration-test}
  */

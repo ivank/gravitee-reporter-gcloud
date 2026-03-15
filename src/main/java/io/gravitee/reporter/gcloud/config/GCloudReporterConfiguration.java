@@ -28,8 +28,8 @@ public class GCloudReporterConfiguration {
   @Value("${reporters.gcloud.enabled:true}")
   private boolean enabled;
 
-  /** GCP project ID. Falls back to GOOGLE_CLOUD_PROJECT env var / ADC metadata when blank. */
-  @Value("${reporters.gcloud.projectId:}")
+  /** GCP project ID. Required — set {@code reporters.gcloud.projectid} in gravitee.yml. */
+  @Value("${reporters.gcloud.projectid:}")
   private String projectId;
 
   @Value("${reporters.gcloud.logName:gravitee-gateway}")
