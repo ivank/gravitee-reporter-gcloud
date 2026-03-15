@@ -55,9 +55,16 @@ public class GCloudReporter
   @Autowired
   private GCloudLogWriter logWriter;
 
+  @Autowired
   private MetricsToLogEntryMapper metricsMapper;
+
+  @Autowired
   private LogToLogEntryMapper logMapper;
+
+  @Autowired
   private EndpointStatusToLogEntryMapper endpointStatusMapper;
+
+  @Autowired
   private MessageMetricsToLogEntryMapper messageMetricsMapper;
 
   @Override
@@ -67,12 +74,6 @@ public class GCloudReporter
       log.info("GCloud reporter is disabled — no telemetry will be sent");
       return;
     }
-
-    metricsMapper = new MetricsToLogEntryMapper(cfg);
-    logMapper = new LogToLogEntryMapper(cfg);
-    endpointStatusMapper = new EndpointStatusToLogEntryMapper(cfg);
-    messageMetricsMapper = new MessageMetricsToLogEntryMapper(cfg);
-
     log.info(
       "GCloud reporter started — writing to project='{}' logName='{}'",
       cfg.getProjectId(),
@@ -82,12 +83,10 @@ public class GCloudReporter
 
   @Override
   protected void doStop() throws Exception {
-    if (logWriter != null) {
-      try {
-        logWriter.close();
-      } catch (Exception e) {
-        log.warn("Error closing GCloud log writer on stop", e);
-      }
+    try {
+      logWriter.close();
+    } catch (Exception e) {
+      log.warn("Error closing GCloud log writer on stop", e);
     }
     super.doStop();
   }

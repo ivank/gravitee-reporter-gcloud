@@ -20,6 +20,10 @@ package io.gravitee.reporter.gcloud.spring;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.mapper.EndpointStatusToLogEntryMapper;
+import io.gravitee.reporter.gcloud.mapper.LogToLogEntryMapper;
+import io.gravitee.reporter.gcloud.mapper.MessageMetricsToLogEntryMapper;
+import io.gravitee.reporter.gcloud.mapper.MetricsToLogEntryMapper;
 import io.gravitee.reporter.gcloud.writer.GCloudEntrySerializer;
 import io.gravitee.reporter.gcloud.writer.GCloudLogWriter;
 import java.io.FileInputStream;
@@ -42,6 +46,34 @@ public class GCloudReporterSpringConfiguration {
   @Bean
   public GCloudReporterConfiguration gCloudReporterConfiguration() {
     return new GCloudReporterConfiguration();
+  }
+
+  @Bean
+  public MetricsToLogEntryMapper metricsToLogEntryMapper(
+    GCloudReporterConfiguration cfg
+  ) {
+    return new MetricsToLogEntryMapper(cfg);
+  }
+
+  @Bean
+  public LogToLogEntryMapper logToLogEntryMapper(
+    GCloudReporterConfiguration cfg
+  ) {
+    return new LogToLogEntryMapper(cfg);
+  }
+
+  @Bean
+  public EndpointStatusToLogEntryMapper endpointStatusToLogEntryMapper(
+    GCloudReporterConfiguration cfg
+  ) {
+    return new EndpointStatusToLogEntryMapper(cfg);
+  }
+
+  @Bean
+  public MessageMetricsToLogEntryMapper messageMetricsToLogEntryMapper(
+    GCloudReporterConfiguration cfg
+  ) {
+    return new MessageMetricsToLogEntryMapper(cfg);
   }
 
   @Bean

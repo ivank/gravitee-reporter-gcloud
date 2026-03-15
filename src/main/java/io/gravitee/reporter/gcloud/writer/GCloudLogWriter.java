@@ -31,7 +31,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +59,6 @@ public class GCloudLogWriter implements AutoCloseable {
   private final ArrayBlockingQueue<GCloudLogEntry> queue;
   private final int batchSize;
   private final ScheduledExecutorService scheduler;
-  private final AtomicBoolean running = new AtomicBoolean(true);
   final String loggingUrl;
 
   public GCloudLogWriter(
@@ -126,63 +124,69 @@ public class GCloudLogWriter implements AutoCloseable {
     List<GCloudLogEntry> batch = new ArrayList<>(batchSize);
     queue.drainTo(batch, batchSize);
     if (batch.isEmpty()) return;
-    sendWithRetry(batch, 0);
+    send(batch);
   }
 
-  private void sendWithRetry(List<GCloudLogEntry> batch, int attempt) {
-    try {
-      String body = serializer.serialize(batch);
-      String token = getAccessToken();
-      HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create(loggingUrl))
-        .header("Authorization", "Bearer " + token)
-        .header("Content-Type", "application/json; charset=UTF-8")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
-        .timeout(Duration.ofSeconds(30))
-        .build();
+  private void send(List<GCloudLogEntry> batch) {
+    for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        String body = serializer.serialize(batch);
+        String token = getAccessToken();
+        HttpRequest request = HttpRequest.newBuilder()
+          .uri(URI.create(loggingUrl))
+          .header("Authorization", "Bearer " + token)
+          .header("Content-Type", "application/json; charset=UTF-8")
+          .POST(HttpRequest.BodyPublishers.ofString(body))
+          .timeout(Duration.ofSeconds(30))
+          .build();
 
-      HttpResponse<String> response = httpClient.send(
-        request,
-        HttpResponse.BodyHandlers.ofString()
-      );
-      int status = response.statusCode();
-
-      if (status == 200) {
-        log.debug("Sent {} log entries to Cloud Logging", batch.size());
-      } else if (
-        (status == 429 || status == 500 || status == 503) &&
-        attempt < MAX_RETRIES
-      ) {
-        long backoff = BASE_BACKOFF_MS * (1L << attempt);
-        log.warn(
-          "Cloud Logging returned {} — retry {}/{} in {}ms",
-          status,
-          attempt + 1,
-          MAX_RETRIES,
-          backoff
+        HttpResponse<String> response = httpClient.send(
+          request,
+          HttpResponse.BodyHandlers.ofString()
         );
-        Thread.sleep(backoff);
-        sendWithRetry(batch, attempt + 1);
-      } else {
+        int status = response.statusCode();
+
+        if (status == 200) {
+          log.debug("Sent {} log entries to Cloud Logging", batch.size());
+          return;
+        }
+        if (
+          (status == 429 || status == 500 || status == 503) &&
+          attempt < MAX_RETRIES
+        ) {
+          long backoff = BASE_BACKOFF_MS * (1L << attempt);
+          log.warn(
+            "Cloud Logging returned {} — retry {}/{} in {}ms",
+            status,
+            attempt + 1,
+            MAX_RETRIES,
+            backoff
+          );
+          Thread.sleep(backoff);
+          continue;
+        }
         log.error(
           "Cloud Logging write failed (status={}) — dropping {} entries: {}",
           status,
           batch.size(),
           response.body()
         );
+        return;
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        log.warn(
+          "Interrupted while sending log entries — dropping {} entries",
+          batch.size()
+        );
+        return;
+      } catch (Exception e) {
+        log.error(
+          "Exception sending log entries to Cloud Logging — dropping {} entries",
+          batch.size(),
+          e
+        );
+        return;
       }
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      log.warn(
-        "Interrupted while sending log entries — dropping {} entries",
-        batch.size()
-      );
-    } catch (Exception e) {
-      log.error(
-        "Exception sending log entries to Cloud Logging — dropping {} entries",
-        batch.size(),
-        e
-      );
     }
   }
 
@@ -193,7 +197,6 @@ public class GCloudLogWriter implements AutoCloseable {
 
   @Override
   public void close() {
-    running.set(false);
     scheduler.shutdown();
     try {
       flush();

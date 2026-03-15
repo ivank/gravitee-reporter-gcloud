@@ -18,15 +18,38 @@
  */
 package io.gravitee.reporter.gcloud.mapper;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 /**
- * Null-safe label insertion for GCL LogEntry labels.
- * Mirrors the SentryTags utility from gravitee-reporter-sentry.
+ * Null-safe label helpers for GCL LogEntry labels.
  */
 public final class GCloudLabels {
 
   private GCloudLabels() {}
+
+  /**
+   * Builds a {@code Map<String,String>} from alternating key/value pairs,
+   * skipping any pair whose value is null or blank.
+   *
+   * <pre>
+   * var labels = GCloudLabels.of(
+   *     "gravitee.api_id",   metrics.getApiId(),
+   *     "gravitee.api_name", metrics.getApiName()
+   * );
+   * </pre>
+   */
+  public static Map<String, String> of(String... kvPairs) {
+    if (kvPairs.length % 2 != 0) {
+      throw new IllegalArgumentException("kvPairs length must be even");
+    }
+    var labels = new LinkedHashMap<String, String>();
+    IntStream.iterate(0, i -> i < kvPairs.length, i -> i + 2)
+      .filter(i -> kvPairs[i + 1] != null && !kvPairs[i + 1].isBlank())
+      .forEach(i -> labels.put(kvPairs[i], kvPairs[i + 1]));
+    return labels;
+  }
 
   /**
    * Inserts {@code value} under {@code key} into {@code labels} only when

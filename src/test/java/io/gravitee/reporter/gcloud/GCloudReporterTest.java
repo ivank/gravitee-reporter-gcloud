@@ -28,7 +28,11 @@ import io.gravitee.reporter.api.v4.log.Log;
 import io.gravitee.reporter.api.v4.metric.MessageMetrics;
 import io.gravitee.reporter.api.v4.metric.Metrics;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.mapper.EndpointStatusToLogEntryMapper;
 import io.gravitee.reporter.gcloud.mapper.GCloudTestSupport;
+import io.gravitee.reporter.gcloud.mapper.LogToLogEntryMapper;
+import io.gravitee.reporter.gcloud.mapper.MessageMetricsToLogEntryMapper;
+import io.gravitee.reporter.gcloud.mapper.MetricsToLogEntryMapper;
 import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
 import io.gravitee.reporter.gcloud.writer.GCloudLogWriter;
 import java.lang.reflect.Field;
@@ -54,10 +58,6 @@ class GCloudReporterTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    reporter = new GCloudReporter();
-    inject(reporter, "cfg", cfg);
-    inject(reporter, "logWriter", logWriter);
-
     when(cfg.isEnabled()).thenReturn(true);
     when(cfg.isCaptureErrors()).thenReturn(true);
     when(cfg.isReportLogs()).thenReturn(true);
@@ -67,6 +67,22 @@ class GCloudReporterTest {
     when(cfg.getTracePrefix()).thenReturn("");
     when(cfg.getLogName()).thenReturn("gravitee-gateway");
     when(cfg.getProjectId()).thenReturn("test-project");
+
+    reporter = new GCloudReporter();
+    inject(reporter, "cfg", cfg);
+    inject(reporter, "logWriter", logWriter);
+    inject(reporter, "metricsMapper", new MetricsToLogEntryMapper(cfg));
+    inject(reporter, "logMapper", new LogToLogEntryMapper(cfg));
+    inject(
+      reporter,
+      "endpointStatusMapper",
+      new EndpointStatusToLogEntryMapper(cfg)
+    );
+    inject(
+      reporter,
+      "messageMetricsMapper",
+      new MessageMetricsToLogEntryMapper(cfg)
+    );
 
     reporter.doStart();
   }
