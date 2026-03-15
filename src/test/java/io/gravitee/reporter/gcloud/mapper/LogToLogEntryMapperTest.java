@@ -18,13 +18,13 @@ package io.gravitee.reporter.gcloud.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Severity;
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.reporter.api.common.Request;
 import io.gravitee.reporter.api.common.Response;
 import io.gravitee.reporter.api.v4.log.Log;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,43 +50,40 @@ class LogToLogEntryMapperTest {
 
   @Test
   void severityIsDebug() {
-    LogEntry entry = mapper.map(buildLog("req-001", "Hello"));
+    GCloudLogEntry entry = mapper.map(buildLog("req-001", "Hello"));
     assertThat(entry).isNotNull();
-    assertThat(entry.getSeverity()).isEqualTo(Severity.DEBUG);
+    assertThat(entry.severity()).isEqualTo(GCloudSeverity.DEBUG);
   }
 
   @Test
   void requestIdMapsToTrace() {
-    LogEntry entry = mapper.map(buildLog("req-001", "Hello"));
-    assertThat(entry.getTrace()).isEqualTo("req-001");
+    GCloudLogEntry entry = mapper.map(buildLog("req-001", "Hello"));
+    assertThat(entry.trace()).isEqualTo("req-001");
   }
 
   @Test
   void requestIdWithPrefixMapsToTrace() {
     when(cfg.getTracePrefix()).thenReturn("projects/my-proj/traces/");
-    LogEntry entry = mapper.map(buildLog("req-001", "Hello"));
-    assertThat(entry.getTrace()).isEqualTo("projects/my-proj/traces/req-001");
+    GCloudLogEntry entry = mapper.map(buildLog("req-001", "Hello"));
+    assertThat(entry.trace()).isEqualTo("projects/my-proj/traces/req-001");
   }
 
   @Test
   void labelsContainApiId() {
-    LogEntry entry = mapper.map(buildLog("req-001", "Hello"));
-    assertThat(entry.getLabels()).containsEntry("gravitee.api_id", "api-abc");
+    GCloudLogEntry entry = mapper.map(buildLog("req-001", "Hello"));
+    assertThat(entry.labels()).containsEntry("gravitee.api_id", "api-abc");
   }
 
   @Test
   void labelsContainRequestId() {
-    LogEntry entry = mapper.map(buildLog("req-001", "Hello"));
-    assertThat(entry.getLabels()).containsEntry(
-      "gravitee.request_id",
-      "req-001"
-    );
+    GCloudLogEntry entry = mapper.map(buildLog("req-001", "Hello"));
+    assertThat(entry.labels()).containsEntry("gravitee.request_id", "req-001");
   }
 
   @Test
   void bodyIsNotTruncatedWhenBelowLimit() {
     String body = "A".repeat(100);
-    LogEntry entry = mapper.map(buildLog("req-001", body));
+    GCloudLogEntry entry = mapper.map(buildLog("req-001", body));
     assertThat(entry).isNotNull();
   }
 
@@ -113,7 +110,7 @@ class LogToLogEntryMapperTest {
   void nullEntrypointRequestIsHandledWithoutNpe() {
     Log log = Log.builder().apiId("api-abc").requestId("req-001").build();
     // entrypointRequest intentionally left null
-    LogEntry entry = mapper.map(log);
+    GCloudLogEntry entry = mapper.map(log);
     assertThat(entry).isNotNull();
   }
 

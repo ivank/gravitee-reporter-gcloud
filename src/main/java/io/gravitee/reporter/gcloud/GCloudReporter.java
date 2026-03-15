@@ -15,10 +15,6 @@
  */
 package io.gravitee.reporter.gcloud;
 
-import com.google.cloud.MonitoredResource;
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Logging;
-import com.google.cloud.logging.LoggingOptions;
 import io.gravitee.common.service.AbstractService;
 import io.gravitee.node.api.monitor.Monitor;
 import io.gravitee.reporter.api.Reportable;
@@ -32,16 +28,15 @@ import io.gravitee.reporter.gcloud.mapper.EndpointStatusToLogEntryMapper;
 import io.gravitee.reporter.gcloud.mapper.LogToLogEntryMapper;
 import io.gravitee.reporter.gcloud.mapper.MessageMetricsToLogEntryMapper;
 import io.gravitee.reporter.gcloud.mapper.MetricsToLogEntryMapper;
-import java.util.List;
-import java.util.Optional;
+import io.gravitee.reporter.gcloud.writer.GCloudLogWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Gravitee reporter plugin that writes gateway telemetry to Google Cloud Logging as structured
- * log entries with native {@code HttpRequest}, {@code trace}, {@code spanId}, {@code severity},
- * and {@code labels} fields.
+ * log entries with native {@code httpRequest}, {@code trace}, {@code spanId}, {@code severity},
+ * and {@code labels} fields — using the Cloud Logging REST API directly.
  */
 public class GCloudReporter
   extends AbstractService<Reporter>
@@ -55,10 +50,8 @@ public class GCloudReporter
   private GCloudReporterConfiguration cfg;
 
   @Autowired
-  private Logging logging;
+  private GCloudLogWriter logWriter;
 
-  private String logName;
-  private MonitoredResource resource;
   private MetricsToLogEntryMapper metricsMapper;
   private LogToLogEntryMapper logMapper;
   private EndpointStatusToLogEntryMapper endpointStatusMapper;
@@ -72,13 +65,6 @@ public class GCloudReporter
       return;
     }
 
-    logName = cfg.getLogName();
-    MonitoredResource.Builder resourceBuilder = MonitoredResource.newBuilder(
-      cfg.getResourceType()
-    );
-    cfg.getResourceLabels().forEach(resourceBuilder::addLabel);
-    resource = resourceBuilder.build();
-
     metricsMapper = new MetricsToLogEntryMapper(cfg);
     logMapper = new LogToLogEntryMapper(cfg);
     endpointStatusMapper = new EndpointStatusToLogEntryMapper(cfg);
@@ -86,23 +72,18 @@ public class GCloudReporter
 
     log.info(
       "GCloud reporter started — writing to project='{}' logName='{}'",
-      ((LoggingOptions) logging.getOptions()).getProjectId(),
-      logName
+      cfg.getProjectId(),
+      cfg.getLogName()
     );
   }
 
   @Override
   protected void doStop() throws Exception {
-    if (logging != null) {
+    if (logWriter != null) {
       try {
-        logging.flush();
+        logWriter.close();
       } catch (Exception e) {
-        log.warn("Error flushing GCloud logging client on stop", e);
-      }
-      try {
-        logging.close();
-      } catch (Exception e) {
-        log.warn("Error closing GCloud logging client", e);
+        log.warn("Error closing GCloud log writer on stop", e);
       }
     }
     super.doStop();
@@ -126,13 +107,14 @@ public class GCloudReporter
     if (!cfg.isEnabled()) return;
     try {
       switch (reportable) {
-        case Metrics m -> writeEntry(metricsMapper.map(m));
-        case Log l -> writeEntry(logMapper.map(l));
-        case MessageMetrics mm -> writeEntry(messageMetricsMapper.map(mm));
-        case EndpointStatus es -> {
-          Optional<LogEntry> entry = endpointStatusMapper.map(es);
-          entry.ifPresent(this::writeEntry);
-        }
+        case Metrics m -> logWriter.enqueue(metricsMapper.map(m));
+        case Log l -> logWriter.enqueue(logMapper.map(l));
+        case MessageMetrics mm -> logWriter.enqueue(
+          messageMetricsMapper.map(mm)
+        );
+        case EndpointStatus es -> endpointStatusMapper
+          .map(es)
+          .ifPresent(logWriter::enqueue);
         case Monitor ignored -> {} // monitor reporting not yet implemented
         default -> {}
       }
@@ -141,20 +123,6 @@ public class GCloudReporter
         "Unexpected error while reporting to GCloud Logging — skipping",
         e
       );
-    }
-  }
-
-  private void writeEntry(LogEntry entry) {
-    if (entry == null) return;
-    try {
-      LogEntry withResource = entry
-        .toBuilder()
-        .setLogName(logName)
-        .setResource(resource)
-        .build();
-      logging.write(List.of(withResource));
-    } catch (Exception e) {
-      log.warn("Failed to write log entry to GCloud Logging", e);
     }
   }
 }

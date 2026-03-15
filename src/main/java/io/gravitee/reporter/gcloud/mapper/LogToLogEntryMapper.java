@@ -15,13 +15,13 @@
  */
 package io.gravitee.reporter.gcloud.mapper;
 
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Payload;
-import com.google.cloud.logging.Severity;
 import io.gravitee.reporter.api.common.Request;
 import io.gravitee.reporter.api.common.Response;
 import io.gravitee.reporter.api.v4.log.Log;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Maps a Gravitee v4 {@link Log} (full request/response with bodies) to a DEBUG-severity
- * GCL {@link LogEntry}. Bodies are truncated to 4096 characters to cap payload size.
+ * {@link GCloudLogEntry}. Bodies are truncated to 4096 characters to cap payload size.
  */
 public class LogToLogEntryMapper {
 
@@ -44,7 +44,7 @@ public class LogToLogEntryMapper {
     this.cfg = cfg;
   }
 
-  public LogEntry map(Log logReportable) {
+  public GCloudLogEntry map(Log logReportable) {
     try {
       Map<String, Object> payload = new HashMap<>();
       payload.put(
@@ -95,20 +95,20 @@ public class LogToLogEntryMapper {
         labels
       );
 
-      LogEntry.Builder builder = LogEntry.newBuilder(
-        Payload.JsonPayload.of(payload)
-      )
-        .setSeverity(Severity.DEBUG)
-        .setLabels(labels);
+      String trace = (logReportable.getRequestId() != null &&
+          !logReportable.getRequestId().isBlank())
+        ? buildTrace(logReportable.getRequestId())
+        : null;
 
-      if (
-        logReportable.getRequestId() != null &&
-        !logReportable.getRequestId().isBlank()
-      ) {
-        builder.setTrace(buildTrace(logReportable.getRequestId()));
-      }
-
-      return builder.build();
+      return new GCloudLogEntry(
+        GCloudSeverity.DEBUG,
+        Instant.now(),
+        trace,
+        null,
+        labels,
+        payload,
+        null
+      );
     } catch (Exception e) {
       log.warn("Failed to map Log to LogEntry — skipping", e);
       return null;

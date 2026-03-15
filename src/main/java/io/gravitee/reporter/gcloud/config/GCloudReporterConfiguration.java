@@ -60,6 +60,12 @@ public class GCloudReporterConfiguration {
   @Value("${reporters.gcloud.tracePrefix:}")
   private String tracePrefix;
 
+  @Value("${reporters.gcloud.batchSize:500}")
+  private int batchSize;
+
+  @Value("${reporters.gcloud.flushIntervalSeconds:5}")
+  private int flushIntervalSeconds;
+
   // Resource labels are not easily bound via @Value for Map types in a plain bean;
   // leave as empty map — users can extend this class if needed.
   private final Map<String, String> resourceLabels = new HashMap<>();
@@ -154,5 +160,21 @@ public class GCloudReporterConfiguration {
 
   public Map<String, String> getResourceLabels() {
     return resourceLabels;
+  }
+
+  public int getBatchSize() {
+    return batchSize;
+  }
+
+  public void setBatchSize(int batchSize) {
+    this.batchSize = batchSize;
+  }
+
+  public int getFlushIntervalSeconds() {
+    return flushIntervalSeconds;
+  }
+
+  public void setFlushIntervalSeconds(int flushIntervalSeconds) {
+    this.flushIntervalSeconds = flushIntervalSeconds;
   }
 }

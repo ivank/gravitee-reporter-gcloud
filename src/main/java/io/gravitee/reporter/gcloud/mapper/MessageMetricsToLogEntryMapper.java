@@ -15,18 +15,18 @@
  */
 package io.gravitee.reporter.gcloud.mapper;
 
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Payload;
-import com.google.cloud.logging.Severity;
 import io.gravitee.reporter.api.v4.metric.MessageMetrics;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Maps a Gravitee v4 {@link MessageMetrics} to an INFO-severity GCL {@link LogEntry}
+ * Maps a Gravitee v4 {@link MessageMetrics} to an INFO-severity {@link GCloudLogEntry}
  * capturing async message counts, error counts, and connector metadata.
  */
 public class MessageMetricsToLogEntryMapper {
@@ -41,7 +41,7 @@ public class MessageMetricsToLogEntryMapper {
     this.cfg = cfg;
   }
 
-  public LogEntry map(MessageMetrics metrics) {
+  public GCloudLogEntry map(MessageMetrics metrics) {
     try {
       Map<String, Object> payload = new HashMap<>();
       payload.put(
@@ -82,17 +82,20 @@ public class MessageMetricsToLogEntryMapper {
         );
       }
 
-      LogEntry.Builder builder = LogEntry.newBuilder(
-        Payload.JsonPayload.of(payload)
-      )
-        .setSeverity(Severity.INFO)
-        .setLabels(labels);
+      String trace = (metrics.getRequestId() != null &&
+          !metrics.getRequestId().isBlank())
+        ? metrics.getRequestId()
+        : null;
 
-      if (metrics.getRequestId() != null && !metrics.getRequestId().isBlank()) {
-        builder.setTrace(metrics.getRequestId());
-      }
-
-      return builder.build();
+      return new GCloudLogEntry(
+        GCloudSeverity.INFO,
+        Instant.now(),
+        trace,
+        null,
+        labels,
+        payload,
+        null
+      );
     } catch (Exception e) {
       log.warn("Failed to map MessageMetrics to LogEntry — skipping", e);
       return null;

@@ -15,11 +15,11 @@
  */
 package io.gravitee.reporter.gcloud.mapper;
 
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Payload;
-import com.google.cloud.logging.Severity;
 import io.gravitee.reporter.api.health.EndpointStatus;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Maps a Gravitee {@link EndpointStatus} to a GCL {@link LogEntry}.
+ * Maps a Gravitee {@link EndpointStatus} to a {@link GCloudLogEntry}.
  *
  * <p>Only emits an entry on state transitions ({@link EndpointStatus#isTransition()} == true)
  * to avoid flooding Cloud Logging with repeated healthy-check results.
@@ -45,14 +45,16 @@ public class EndpointStatusToLogEntryMapper {
   }
 
   /**
-   * @return an empty Optional when the status is not a transition; otherwise a populated LogEntry.
+   * @return an empty Optional when the status is not a transition; otherwise a populated GCloudLogEntry.
    */
-  public Optional<LogEntry> map(EndpointStatus status) {
+  public Optional<GCloudLogEntry> map(EndpointStatus status) {
     if (!status.isTransition()) {
       return Optional.empty();
     }
     try {
-      Severity severity = status.isAvailable() ? Severity.INFO : Severity.ERROR;
+      GCloudSeverity severity = status.isAvailable()
+        ? GCloudSeverity.INFO
+        : GCloudSeverity.ERROR;
 
       Map<String, Object> payload = new HashMap<>();
       payload.put("api_id", status.getApi() != null ? status.getApi() : "");
@@ -93,10 +95,15 @@ public class EndpointStatusToLogEntryMapper {
       labels.put("gravitee.available", String.valueOf(status.isAvailable()));
 
       return Optional.of(
-        LogEntry.newBuilder(Payload.JsonPayload.of(payload))
-          .setSeverity(severity)
-          .setLabels(labels)
-          .build()
+        new GCloudLogEntry(
+          severity,
+          Instant.now(),
+          null,
+          null,
+          labels,
+          payload,
+          null
+        )
       );
     } catch (Exception e) {
       log.warn("Failed to map EndpointStatus to LogEntry — skipping", e);

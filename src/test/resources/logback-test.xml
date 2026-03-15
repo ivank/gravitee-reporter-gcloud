@@ -26,7 +26,7 @@
   <!-- Container stdout/stderr forwarded via Slf4jLogConsumer — keep at ERROR to reduce noise -->
   <logger name="tc.httpbin" level="INFO"/>
   <logger name="tc.management-api" level="ERROR"/>
-  <logger name="tc.gatway" level="INFO"/>
+  <logger name="tc.gateway" level="INFO"/>
 
   <!-- Testcontainers internals — suppress wire noise -->
   <logger name="org.testcontainers" level="INFO"/>

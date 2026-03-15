@@ -17,11 +17,9 @@ package io.gravitee.reporter.gcloud.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Payload;
-import com.google.cloud.logging.Severity;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
-import java.util.Map;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,37 +41,37 @@ class MessageMetricsToLogEntryMapperTest {
 
   @Test
   void severityIsInfo() {
-    LogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
     assertThat(entry).isNotNull();
-    assertThat(entry.getSeverity()).isEqualTo(Severity.INFO);
+    assertThat(entry.severity()).isEqualTo(GCloudSeverity.INFO);
   }
 
   @Test
   void payloadContainsCount() {
-    LogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
-    Map<String, ?> fields =
-      ((Payload.JsonPayload) entry.getPayload()).getDataAsMap();
-    assertThat(((Number) fields.get("count")).longValue()).isEqualTo(10L);
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
+    assertThat(
+      ((Number) entry.jsonPayload().get("count")).longValue()
+    ).isEqualTo(10L);
   }
 
   @Test
   void payloadContainsErrorCount() {
-    LogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
-    Map<String, ?> fields =
-      ((Payload.JsonPayload) entry.getPayload()).getDataAsMap();
-    assertThat(((Number) fields.get("error_count")).longValue()).isEqualTo(2L);
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
+    assertThat(
+      ((Number) entry.jsonPayload().get("error_count")).longValue()
+    ).isEqualTo(2L);
   }
 
   @Test
   void labelsContainApiId() {
-    LogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
-    assertThat(entry.getLabels()).containsEntry("gravitee.api_id", "api-123");
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
+    assertThat(entry.labels()).containsEntry("gravitee.api_id", "api-123");
   }
 
   @Test
   void labelsContainConnectorId() {
-    LogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
-    assertThat(entry.getLabels()).containsEntry(
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
+    assertThat(entry.labels()).containsEntry(
       "gravitee.connector_id",
       "connector-kafka"
     );
@@ -81,7 +79,7 @@ class MessageMetricsToLogEntryMapperTest {
 
   @Test
   void requestIdMapsToTrace() {
-    LogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
-    assertThat(entry.getTrace()).isEqualTo("req-msg-001");
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.messageMetrics());
+    assertThat(entry.trace()).isEqualTo("req-msg-001");
   }
 }

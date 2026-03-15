@@ -16,9 +16,9 @@
 package io.gravitee.reporter.gcloud.spring;
 
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.cloud.logging.Logging;
-import com.google.cloud.logging.LoggingOptions;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.writer.GCloudEntrySerializer;
+import io.gravitee.reporter.gcloud.writer.GCloudLogWriter;
 import java.io.FileInputStream;
 import java.io.IOException;
 import org.slf4j.Logger;
@@ -33,20 +33,43 @@ public class GCloudReporterSpringConfiguration {
     GCloudReporterSpringConfiguration.class
   );
 
+  private static final String LOGGING_SCOPE =
+    "https://www.googleapis.com/auth/logging.write";
+
   @Bean
   public GCloudReporterConfiguration gCloudReporterConfiguration() {
     return new GCloudReporterConfiguration();
   }
 
   @Bean
-  public Logging loggingClient(GCloudReporterConfiguration cfg)
+  public GCloudLogWriter logWriter(GCloudReporterConfiguration cfg)
     throws IOException {
-    LoggingOptions.Builder builder = LoggingOptions.newBuilder();
+    GoogleCredentials credentials = loadCredentials(cfg);
 
-    if (cfg.getProjectId() != null && !cfg.getProjectId().isBlank()) {
-      builder.setProjectId(cfg.getProjectId());
-    }
+    String projectId = resolveProjectId(cfg);
+    log.debug(
+      "GCloud reporter — project='{}' logName='{}'",
+      projectId,
+      cfg.getLogName()
+    );
 
+    GCloudEntrySerializer serializer = new GCloudEntrySerializer(
+      projectId,
+      cfg.getLogName(),
+      cfg.getResourceType(),
+      cfg.getResourceLabels()
+    );
+
+    return new GCloudLogWriter(
+      serializer,
+      credentials,
+      cfg.getBatchSize(),
+      cfg.getFlushIntervalSeconds()
+    );
+  }
+
+  private GoogleCredentials loadCredentials(GCloudReporterConfiguration cfg)
+    throws IOException {
     if (
       cfg.getCredentialsFile() != null && !cfg.getCredentialsFile().isBlank()
     ) {
@@ -57,16 +80,26 @@ public class GCloudReporterSpringConfiguration {
       try (
         FileInputStream stream = new FileInputStream(cfg.getCredentialsFile())
       ) {
-        builder.setCredentials(
-          GoogleCredentials.fromStream(stream).createScoped(
-            "https://www.googleapis.com/auth/logging.write"
-          )
-        );
+        return GoogleCredentials.fromStream(stream).createScoped(LOGGING_SCOPE);
       }
-    } else {
-      log.debug("Using Application Default Credentials for GCloud Logging");
     }
+    log.debug("Using Application Default Credentials for GCloud Logging");
+    return GoogleCredentials.getApplicationDefault().createScoped(
+      LOGGING_SCOPE
+    );
+  }
 
-    return builder.build().getService();
+  private String resolveProjectId(GCloudReporterConfiguration cfg) {
+    if (cfg.getProjectId() != null && !cfg.getProjectId().isBlank()) {
+      return cfg.getProjectId();
+    }
+    String envProject = System.getenv("GOOGLE_CLOUD_PROJECT");
+    if (envProject != null && !envProject.isBlank()) {
+      return envProject;
+    }
+    throw new IllegalStateException(
+      "GCloud reporter: reporters.gcloud.projectId must be set " +
+        "(or GOOGLE_CLOUD_PROJECT env var)"
+    );
   }
 }

@@ -112,10 +112,20 @@
 
         <!-- ===== BUNDLED — shipped inside the plugin ZIP under lib/ ===== -->
 
+        <!-- OAuth2 token management for Cloud Logging REST API calls -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.32.1</version>
+        </dependency>
+
+        <!-- google-cloud-logging kept at test scope: needed by GCloudLoggingClient
+             in integration tests to read back entries from Cloud Logging. -->
         <dependency>
             <groupId>com.google.cloud</groupId>
             <artifactId>google-cloud-logging</artifactId>
             <version>${google-cloud-logging.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- ===== TEST ===== -->

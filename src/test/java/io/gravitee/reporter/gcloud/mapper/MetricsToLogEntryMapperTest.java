@@ -18,10 +18,10 @@ package io.gravitee.reporter.gcloud.mapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Severity;
 import io.gravitee.reporter.api.v4.metric.Metrics;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,117 +48,110 @@ class MetricsToLogEntryMapperTest {
 
   @Test
   void status200MapsToSeverityInfo() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
     assertThat(entry).isNotNull();
-    assertThat(entry.getSeverity()).isEqualTo(Severity.INFO);
+    assertThat(entry.severity()).isEqualTo(GCloudSeverity.INFO);
   }
 
   @Test
   void status500MapsToSeverityError() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(500));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(500));
     assertThat(entry).isNotNull();
-    assertThat(entry.getSeverity()).isEqualTo(Severity.ERROR);
+    assertThat(entry.severity()).isEqualTo(GCloudSeverity.ERROR);
   }
 
   @Test
   void status500WithCaptureErrorsFalseDoesNotMapToError() {
     when(cfg.isCaptureErrors()).thenReturn(false);
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(500));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(500));
     assertThat(entry).isNotNull();
-    assertThat(entry.getSeverity()).isEqualTo(Severity.INFO);
+    assertThat(entry.severity()).isEqualTo(GCloudSeverity.INFO);
   }
 
   @Test
   void status404MapsToSeverityWarning() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(404));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(404));
     assertThat(entry).isNotNull();
-    assertThat(entry.getSeverity()).isEqualTo(Severity.WARNING);
+    assertThat(entry.severity()).isEqualTo(GCloudSeverity.WARNING);
   }
 
   @Test
   void transactionIdMapsToTrace() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
     assertThat(entry).isNotNull();
-    assertThat(entry.getTrace()).isEqualTo("txn-aabbccdd");
+    assertThat(entry.trace()).isEqualTo("txn-aabbccdd");
   }
 
   @Test
   void tracePrefixIsPrependedToTransactionId() {
     when(cfg.getTracePrefix()).thenReturn("projects/my-project/traces/");
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
     assertThat(entry).isNotNull();
-    assertThat(entry.getTrace()).isEqualTo(
+    assertThat(entry.trace()).isEqualTo(
       "projects/my-project/traces/txn-aabbccdd"
     );
   }
 
   @Test
   void requestIdMapsToSpanId() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
     assertThat(entry).isNotNull();
-    assertThat(entry.getSpanId()).isEqualTo("req-11223344");
+    assertThat(entry.spanId()).isEqualTo("req-11223344");
   }
 
   @Test
   void httpRequestMethodIsPopulated() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
     assertThat(entry).isNotNull();
-    assertThat(entry.getHttpRequest()).isNotNull();
-    assertThat(entry.getHttpRequest().getRequestMethod()).isEqualTo(
-      com.google.cloud.logging.HttpRequest.RequestMethod.GET
-    );
+    assertThat(entry.httpRequest()).isNotNull();
+    assertThat(entry.httpRequest().requestMethod()).isEqualTo("GET");
   }
 
   @Test
   void httpRequestStatusIsPopulated() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
-    assertThat(entry.getHttpRequest().getStatus()).isEqualTo(200);
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    assertThat(entry.httpRequest().status()).isEqualTo(200);
   }
 
   @Test
   void httpRequestUserAgentIsPopulated() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
-    assertThat(entry.getHttpRequest().getUserAgent()).isEqualTo(
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    assertThat(entry.httpRequest().userAgent()).isEqualTo(
       "gravitee-test-client/1.0"
     );
   }
 
   @Test
   void httpRequestRemoteIpIsPopulated() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
-    assertThat(entry.getHttpRequest().getRemoteIp()).isEqualTo("10.0.0.1");
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    assertThat(entry.httpRequest().remoteIp()).isEqualTo("10.0.0.1");
   }
 
   @Test
   void httpRequestLatencyIsPopulated() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
-    assertThat(entry.getHttpRequest().getLatencyDuration()).isEqualTo(
-      java.time.Duration.ofMillis(42)
-    );
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    assertThat(entry.httpRequest().latencyMs()).isEqualTo(42L);
   }
 
   @Test
   void labelsContainApiId() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
-    assertThat(entry.getLabels()).containsEntry("gravitee.api_id", "api-123");
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    assertThat(entry.labels()).containsEntry("gravitee.api_id", "api-123");
   }
 
   @Test
   void labelsContainApiName() {
-    LogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
-    assertThat(entry.getLabels()).containsEntry(
-      "gravitee.api_name",
-      "Test API"
-    );
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    assertThat(entry.labels()).containsEntry("gravitee.api_name", "Test API");
   }
 
   @Test
   void nullFieldsDoNotCauseNpe() {
     Metrics m = new Metrics();
     m.setStatus(200);
-    LogEntry entry = mapper.map(m);
+    GCloudLogEntry entry = mapper.map(m);
     assertThat(entry).isNotNull();
-    assertThat(entry.getLabels()).doesNotContainKey("gravitee.api_id");
+    assertThat(entry.labels()).doesNotContainKey("gravitee.api_id");
   }
 
   @Test

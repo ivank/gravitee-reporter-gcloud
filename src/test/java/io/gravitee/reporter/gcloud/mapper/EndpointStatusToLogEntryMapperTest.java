@@ -17,9 +17,9 @@ package io.gravitee.reporter.gcloud.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Severity;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +42,7 @@ class EndpointStatusToLogEntryMapperTest {
 
   @Test
   void nonTransitionReturnsEmpty() {
-    Optional<LogEntry> result = mapper.map(
+    Optional<GCloudLogEntry> result = mapper.map(
       GCloudTestSupport.endpointStatusNonTransition()
     );
     assertThat(result).isEmpty();
@@ -50,29 +50,29 @@ class EndpointStatusToLogEntryMapperTest {
 
   @Test
   void transitionToUnavailableMapsToSeverityError() {
-    Optional<LogEntry> result = mapper.map(
+    Optional<GCloudLogEntry> result = mapper.map(
       GCloudTestSupport.endpointStatusTransition(false)
     );
     assertThat(result).isPresent();
-    assertThat(result.get().getSeverity()).isEqualTo(Severity.ERROR);
+    assertThat(result.get().severity()).isEqualTo(GCloudSeverity.ERROR);
   }
 
   @Test
   void transitionToAvailableMapsToSeverityInfo() {
-    Optional<LogEntry> result = mapper.map(
+    Optional<GCloudLogEntry> result = mapper.map(
       GCloudTestSupport.endpointStatusTransition(true)
     );
     assertThat(result).isPresent();
-    assertThat(result.get().getSeverity()).isEqualTo(Severity.INFO);
+    assertThat(result.get().severity()).isEqualTo(GCloudSeverity.INFO);
   }
 
   @Test
   void labelsContainApiId() {
-    Optional<LogEntry> result = mapper.map(
+    Optional<GCloudLogEntry> result = mapper.map(
       GCloudTestSupport.endpointStatusTransition(true)
     );
     assertThat(result).isPresent();
-    assertThat(result.get().getLabels()).containsEntry(
+    assertThat(result.get().labels()).containsEntry(
       "gravitee.api_id",
       "api-123"
     );
@@ -80,11 +80,11 @@ class EndpointStatusToLogEntryMapperTest {
 
   @Test
   void labelsContainApiName() {
-    Optional<LogEntry> result = mapper.map(
+    Optional<GCloudLogEntry> result = mapper.map(
       GCloudTestSupport.endpointStatusTransition(true)
     );
     assertThat(result).isPresent();
-    assertThat(result.get().getLabels()).containsEntry(
+    assertThat(result.get().labels()).containsEntry(
       "gravitee.api_name",
       "Test API"
     );
@@ -92,11 +92,11 @@ class EndpointStatusToLogEntryMapperTest {
 
   @Test
   void labelsContainEndpoint() {
-    Optional<LogEntry> result = mapper.map(
+    Optional<GCloudLogEntry> result = mapper.map(
       GCloudTestSupport.endpointStatusTransition(true)
     );
     assertThat(result).isPresent();
-    assertThat(result.get().getLabels()).containsEntry(
+    assertThat(result.get().labels()).containsEntry(
       "gravitee.endpoint",
       "https://backend.example.com/health"
     );
@@ -104,11 +104,11 @@ class EndpointStatusToLogEntryMapperTest {
 
   @Test
   void labelsContainAvailableFlag() {
-    Optional<LogEntry> result = mapper.map(
+    Optional<GCloudLogEntry> result = mapper.map(
       GCloudTestSupport.endpointStatusTransition(false)
     );
     assertThat(result).isPresent();
-    assertThat(result.get().getLabels()).containsEntry(
+    assertThat(result.get().labels()).containsEntry(
       "gravitee.available",
       "false"
     );

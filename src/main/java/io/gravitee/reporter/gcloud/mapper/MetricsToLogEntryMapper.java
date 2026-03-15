@@ -15,13 +15,12 @@
  */
 package io.gravitee.reporter.gcloud.mapper;
 
-import com.google.cloud.logging.HttpRequest;
-import com.google.cloud.logging.LogEntry;
-import com.google.cloud.logging.Payload;
-import com.google.cloud.logging.Severity;
 import io.gravitee.reporter.api.v4.metric.Metrics;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
-import java.time.Duration;
+import io.gravitee.reporter.gcloud.writer.GCloudHttpRequest;
+import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
+import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -29,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Maps a Gravitee v4 {@link Metrics} reportable to a GCL {@link LogEntry} with a fully
+ * Maps a Gravitee v4 {@link Metrics} reportable to a {@link GCloudLogEntry} with a fully
  * populated {@code httpRequest} field, trace/span identifiers, and Gravitee-specific labels.
  */
 public class MetricsToLogEntryMapper {
@@ -49,15 +48,23 @@ public class MetricsToLogEntryMapper {
     this.cfg = cfg;
   }
 
-  public LogEntry map(Metrics metrics) {
+  public GCloudLogEntry map(Metrics metrics) {
     try {
       Map<String, String> labels = buildLabels(metrics);
 
-      HttpRequest httpRequest = buildHttpRequest(metrics);
+      GCloudHttpRequest httpRequest = buildHttpRequest(metrics);
 
-      Severity severity = resolveSeverity(metrics.getStatus());
+      GCloudSeverity severity = resolveSeverity(metrics.getStatus());
 
       String trace = buildTrace(metrics.getTransactionId());
+      String spanId = (metrics.getRequestId() != null &&
+          !metrics.getRequestId().isBlank())
+        ? metrics.getRequestId()
+        : null;
+
+      Instant timestamp = metrics.getTimestamp() > 0
+        ? Instant.ofEpochMilli(metrics.getTimestamp())
+        : Instant.now();
 
       Map<String, Object> payloadFields = new HashMap<>();
       payloadFields.put(
@@ -91,24 +98,15 @@ public class MetricsToLogEntryMapper {
         metrics.getEndpointResponseTimeMs()
       );
 
-      LogEntry.Builder builder = LogEntry.newBuilder(
-        Payload.JsonPayload.of(payloadFields)
-      )
-        .setSeverity(severity)
-        .setHttpRequest(httpRequest)
-        .setLabels(labels);
-
-      if (trace != null && !trace.isBlank()) {
-        builder.setTrace(trace);
-      }
-      if (metrics.getRequestId() != null && !metrics.getRequestId().isBlank()) {
-        builder.setSpanId(metrics.getRequestId());
-      }
-      if (metrics.getTimestamp() > 0) {
-        builder.setTimestamp(metrics.getTimestamp());
-      }
-
-      return builder.build();
+      return new GCloudLogEntry(
+        severity,
+        timestamp,
+        trace,
+        spanId,
+        labels,
+        payloadFields,
+        httpRequest
+      );
     } catch (Exception e) {
       log.warn("Failed to map Metrics to LogEntry — skipping", e);
       return null;
@@ -121,14 +119,14 @@ public class MetricsToLogEntryMapper {
     return ID_PATTERN.matcher(path).replaceAll("{id}");
   }
 
-  private Severity resolveSeverity(int status) {
+  private GCloudSeverity resolveSeverity(int status) {
     if (status >= 500) {
-      return cfg.isCaptureErrors() ? Severity.ERROR : Severity.INFO;
+      return cfg.isCaptureErrors() ? GCloudSeverity.ERROR : GCloudSeverity.INFO;
     }
     if (status >= 400) {
-      return Severity.WARNING;
+      return GCloudSeverity.WARNING;
     }
-    return Severity.INFO;
+    return GCloudSeverity.INFO;
   }
 
   private String buildTrace(String transactionId) {
@@ -139,51 +137,55 @@ public class MetricsToLogEntryMapper {
       : transactionId;
   }
 
-  private HttpRequest buildHttpRequest(Metrics metrics) {
-    HttpRequest.Builder builder = HttpRequest.newBuilder();
+  private GCloudHttpRequest buildHttpRequest(Metrics metrics) {
+    String requestMethod = metrics.getHttpMethod() != null
+      ? metrics.getHttpMethod().name()
+      : null;
 
-    if (metrics.getHttpMethod() != null) {
-      try {
-        builder.setRequestMethod(
-          HttpRequest.RequestMethod.valueOf(metrics.getHttpMethod().name())
-        );
-      } catch (IllegalArgumentException ignored) {}
-    }
+    String requestUrl = null;
     if (metrics.getUri() != null) {
       String url = metrics.getUri();
       if (metrics.getHost() != null && !metrics.getHost().isBlank()) {
         url = "http://" + metrics.getHost() + url;
       }
-      builder.setRequestUrl(url);
-    }
-    if (metrics.getRequestContentLength() > 0) {
-      builder.setRequestSize(metrics.getRequestContentLength());
-    }
-    builder.setStatus(metrics.getStatus());
-    if (metrics.getResponseContentLength() > 0) {
-      builder.setResponseSize(metrics.getResponseContentLength());
-    }
-    if (metrics.getUserAgent() != null && !metrics.getUserAgent().isBlank()) {
-      builder.setUserAgent(metrics.getUserAgent());
-    }
-    if (
-      metrics.getRemoteAddress() != null &&
-      !metrics.getRemoteAddress().isBlank()
-    ) {
-      builder.setRemoteIp(metrics.getRemoteAddress());
-    }
-    if (
-      metrics.getLocalAddress() != null && !metrics.getLocalAddress().isBlank()
-    ) {
-      builder.setServerIp(metrics.getLocalAddress());
-    }
-    if (metrics.getGatewayResponseTimeMs() > 0) {
-      builder.setLatencyDuration(
-        Duration.ofMillis(metrics.getGatewayResponseTimeMs())
-      );
+      requestUrl = url;
     }
 
-    return builder.build();
+    long requestSize = metrics.getRequestContentLength() > 0
+      ? metrics.getRequestContentLength()
+      : 0L;
+    long responseSize = metrics.getResponseContentLength() > 0
+      ? metrics.getResponseContentLength()
+      : 0L;
+
+    String userAgent = (metrics.getUserAgent() != null &&
+        !metrics.getUserAgent().isBlank())
+      ? metrics.getUserAgent()
+      : null;
+    String remoteIp = (metrics.getRemoteAddress() != null &&
+        !metrics.getRemoteAddress().isBlank())
+      ? metrics.getRemoteAddress()
+      : null;
+    String serverIp = (metrics.getLocalAddress() != null &&
+        !metrics.getLocalAddress().isBlank())
+      ? metrics.getLocalAddress()
+      : null;
+
+    long latencyMs = metrics.getGatewayResponseTimeMs() > 0
+      ? metrics.getGatewayResponseTimeMs()
+      : 0L;
+
+    return new GCloudHttpRequest(
+      requestMethod,
+      requestUrl,
+      requestSize,
+      metrics.getStatus(),
+      responseSize,
+      userAgent,
+      remoteIp,
+      serverIp,
+      latencyMs
+    );
   }
 
   private Map<String, String> buildLabels(Metrics metrics) {
