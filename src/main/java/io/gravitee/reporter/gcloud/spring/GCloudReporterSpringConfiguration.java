@@ -93,13 +93,18 @@ public class GCloudReporterSpringConfiguration {
     if (cfg.getProjectId() != null && !cfg.getProjectId().isBlank()) {
       return cfg.getProjectId();
     }
-    String envProject = System.getenv("GOOGLE_CLOUD_PROJECT");
-    if (envProject != null && !envProject.isBlank()) {
-      return envProject;
+    // Check OS env var (container/production) then system property (Failsafe/test JVM)
+    for (String candidate : new String[] {
+      System.getenv("GOOGLE_CLOUD_PROJECT"),
+      System.getProperty("GOOGLE_CLOUD_PROJECT"),
+    }) {
+      if (candidate != null && !candidate.isBlank()) {
+        return candidate;
+      }
     }
     throw new IllegalStateException(
       "GCloud reporter: reporters.gcloud.projectId must be set " +
-        "(or GOOGLE_CLOUD_PROJECT env var)"
+        "(or GOOGLE_CLOUD_PROJECT env var / system property)"
     );
   }
 }

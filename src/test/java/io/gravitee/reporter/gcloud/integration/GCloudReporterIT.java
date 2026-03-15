@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.google.cloud.logging.LogEntry;
+import com.google.cloud.logging.Payload;
 import com.google.cloud.logging.Severity;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -28,6 +29,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
@@ -249,7 +251,8 @@ class GCloudReporterIT {
     successApiId = mgmtHelper.createAndDeployApi(
       "GCloud IT Success",
       "/gcloud-it-ok",
-      "http://httpbin:8080/status/200"
+      "http://httpbin:8080/status/200",
+      true // enable analytics logging to capture headers and endpoint request
     );
     errorApiId = mgmtHelper.createAndDeployApi(
       "GCloud IT Error",
@@ -425,5 +428,64 @@ class GCloudReporterIT {
     LogEntry entry = entries.get(0);
     assertThat(entry.getTrace()).contains(transactionId);
     assertThat(entry.getSpanId()).isNotNull().isNotBlank();
+  }
+
+  /**
+   * Verifies that when API logging is enabled (analytics.logging configured), the jsonPayload
+   * contains entrypoint request headers and a populated endpoint.request section with the
+   * actual method, URI, and headers forwarded to the backend.
+   */
+  @Test
+  @SuppressWarnings("unchecked")
+  void shouldPopulateEndpointRequestAndHeadersWhenLoggingEnabled()
+    throws Exception {
+    var response = http.send(
+      HttpRequest.newBuilder()
+        .uri(URI.create(gatewayBase + "/gcloud-it-ok"))
+        .header("X-Custom-Header", "integration-test")
+        .build(),
+      HttpResponse.BodyHandlers.discarding()
+    );
+    assertThat(response.statusCode()).isEqualTo(200);
+
+    String filter =
+      loggingClient.logNameFilter(LOG_NAME) +
+      " AND labels.\"gravitee.api_id\"=\"" +
+      successApiId +
+      "\"" +
+      " AND httpRequest.status=200";
+
+    List<LogEntry> entries = loggingClient.pollForEntries(
+      filter,
+      Duration.ofSeconds(90)
+    );
+
+    assertThat(entries).isNotEmpty();
+    LogEntry entry = entries.get(0);
+
+    Payload<?> rawPayload = entry.getPayload();
+    assertThat(rawPayload).isInstanceOf(Payload.JsonPayload.class);
+    Map<String, Object> data =
+      ((Payload.JsonPayload) rawPayload).getDataAsMap();
+
+    // entrypoint.request must have headers when API logging is enabled
+    Map<String, Object> entrypoint = (Map<String, Object>) data.get(
+      "entrypoint"
+    );
+    assertThat(entrypoint).isNotNull();
+    Map<String, Object> epReq = (Map<String, Object>) entrypoint.get("request");
+    assertThat(epReq).isNotNull();
+    assertThat(epReq).containsKey("headers");
+
+    // endpoint.request must be present with method, URI, and headers
+    Map<String, Object> endpoint = (Map<String, Object>) data.get("endpoint");
+    assertThat(endpoint).isNotNull();
+    Map<String, Object> endpReq = (Map<String, Object>) endpoint.get("request");
+    assertThat(endpReq)
+      .as("endpoint.request must be present when API logging is enabled")
+      .isNotNull();
+    assertThat(endpReq).containsKey("method");
+    assertThat(endpReq).containsKey("uri");
+    assertThat(endpReq).containsKey("headers");
   }
 }

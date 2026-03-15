@@ -16,8 +16,12 @@
 package io.gravitee.reporter.gcloud.mapper;
 
 import io.gravitee.common.http.HttpMethod;
+import io.gravitee.gateway.api.http.HttpHeaders;
+import io.gravitee.reporter.api.common.Request;
+import io.gravitee.reporter.api.common.Response;
 import io.gravitee.reporter.api.health.EndpointStatus;
 import io.gravitee.reporter.api.v4.common.MessageConnectorType;
+import io.gravitee.reporter.api.v4.log.Log;
 import io.gravitee.reporter.api.v4.metric.MessageMetrics;
 import io.gravitee.reporter.api.v4.metric.Metrics;
 import java.time.Instant;
@@ -56,6 +60,54 @@ public final class GCloudTestSupport {
     return m;
   }
 
+  /** Builds a {@link Metrics} with a populated {@link Log} (simulates API logging enabled). */
+  public static Metrics metricsWithLog(int status) {
+    Metrics m = metrics(status);
+
+    HttpHeaders epReqHeaders = HttpHeaders.create()
+      .add("X-Request-Id", "req-header-001")
+      .add("Content-Type", "application/json");
+
+    Request entrypointReq = new Request();
+    entrypointReq.setMethod(HttpMethod.GET);
+    entrypointReq.setUri("/api/v1/users/42");
+    entrypointReq.setHeaders(epReqHeaders);
+
+    HttpHeaders epRespHeaders = HttpHeaders.create().add(
+      "Content-Type",
+      "application/json"
+    );
+
+    Response entrypointResp = new Response(status);
+    entrypointResp.setHeaders(epRespHeaders);
+
+    HttpHeaders endpReqHeaders = HttpHeaders.create()
+      .add("X-Forwarded-For", "10.0.0.1")
+      .add("Content-Type", "application/json");
+
+    Request endpointReq = new Request();
+    endpointReq.setMethod(HttpMethod.GET);
+    endpointReq.setUri("/backend/users/42");
+    endpointReq.setHeaders(endpReqHeaders);
+
+    HttpHeaders endpRespHeaders = HttpHeaders.create().add(
+      "X-Backend-Trace",
+      "trace-xyz"
+    );
+
+    Response endpointResp = new Response(status);
+    endpointResp.setHeaders(endpRespHeaders);
+
+    Log log = Log.builder().build();
+    log.setEntrypointRequest(entrypointReq);
+    log.setEntrypointResponse(entrypointResp);
+    log.setEndpointRequest(endpointReq);
+    log.setEndpointResponse(endpointResp);
+
+    m.setLog(log);
+    return m;
+  }
+
   public static EndpointStatus endpointStatusTransition(boolean available) {
     EndpointStatus s = EndpointStatus.forEndpoint(
       "api-123",
@@ -84,7 +136,7 @@ public final class GCloudTestSupport {
   }
 
   public static MessageMetrics messageMetrics() {
-    MessageMetrics m = new MessageMetrics();
+    MessageMetrics m = MessageMetrics.builder().build();
     m.setApiId("api-123");
     m.setRequestId("req-msg-001");
     m.setConnectorId("connector-kafka");

@@ -22,6 +22,7 @@ import io.gravitee.reporter.api.v4.metric.Metrics;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
 import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
 import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -152,6 +153,175 @@ class MetricsToLogEntryMapperTest {
     GCloudLogEntry entry = mapper.map(m);
     assertThat(entry).isNotNull();
     assertThat(entry.labels()).doesNotContainKey("gravitee.api_id");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadApiSectionContainsIdAndName() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> api = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("api");
+    assertThat(api)
+      .containsEntry("id", "api-123")
+      .containsEntry("name", "Test API");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadContextContainsPlanAndApplication() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> ctx = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("context");
+    assertThat(ctx)
+      .containsEntry("plan", "plan-789")
+      .containsEntry("application", "app-456");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadEntrypointRequestContainsMethodAndUri() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> entrypoint = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("entrypoint");
+    Map<String, Object> req = (Map<String, Object>) entrypoint.get("request");
+    assertThat(req)
+      .containsEntry("method", "GET")
+      .containsEntry("uri", "/api/v1/users/42");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadEntrypointRequestPathIsSanitized() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> entrypoint = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("entrypoint");
+    Map<String, Object> req = (Map<String, Object>) entrypoint.get("request");
+    assertThat(req).containsEntry("path", "/api/v1/users/{id}");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadEntrypointResponseContainsStatusAndTime() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> entrypoint = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("entrypoint");
+    Map<String, Object> resp = (Map<String, Object>) entrypoint.get("response");
+    assertThat(resp).containsEntry("status", 200);
+    assertThat(((Number) resp.get("time_ms")).longValue()).isEqualTo(42L);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadEndpointResponseTimeIsSet() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> endpoint = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("endpoint");
+    Map<String, Object> resp = (Map<String, Object>) endpoint.get("response");
+    assertThat(((Number) resp.get("time_ms")).longValue()).isEqualTo(37L);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadGatewayLatencyIsSet() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> gateway = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("gateway");
+    assertThat(((Number) gateway.get("latency_ms")).longValue()).isEqualTo(5L);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadErrorSectionAbsentFor200() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    assertThat(entry.jsonPayload()).doesNotContainKey("error");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void payloadErrorSectionPresentWhenErrorSet() {
+    Metrics m = GCloudTestSupport.metrics(500);
+    m.setErrorMessage("upstream timeout");
+    m.setErrorKey("GATEWAY_TIMEOUT");
+    GCloudLogEntry entry = mapper.map(m);
+    Map<String, Object> error = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("error");
+    assertThat(error)
+      .containsEntry("message", "upstream timeout")
+      .containsEntry("key", "GATEWAY_TIMEOUT");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void entrypointRequestHeadersPopulatedWhenLogPresent() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metricsWithLog(200));
+    Map<String, Object> req = (Map<String, Object>) ((Map<String, Object>) entry
+        .jsonPayload()
+        .get("entrypoint")).get("request");
+    Map<String, String> headers = (Map<String, String>) req.get("headers");
+    assertThat(headers).containsEntry("X-Request-Id", "req-header-001");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void entrypointResponseHeadersPopulatedWhenLogPresent() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metricsWithLog(200));
+    Map<String, Object> resp = (Map<String, Object>) ((Map<
+        String,
+        Object
+      >) entry.jsonPayload().get("entrypoint")).get("response");
+    Map<String, String> headers = (Map<String, String>) resp.get("headers");
+    assertThat(headers).containsEntry("Content-Type", "application/json");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void endpointRequestPopulatedWhenLogPresent() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metricsWithLog(200));
+    Map<String, Object> endpointReq = (Map<String, Object>) ((Map<
+        String,
+        Object
+      >) entry.jsonPayload().get("endpoint")).get("request");
+    assertThat(endpointReq).isNotNull();
+    assertThat(endpointReq).containsEntry("method", "GET");
+    assertThat(endpointReq).containsEntry("uri", "/backend/users/42");
+    Map<String, String> headers = (Map<String, String>) endpointReq.get(
+      "headers"
+    );
+    assertThat(headers).containsEntry("X-Forwarded-For", "10.0.0.1");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void endpointResponseHeadersPopulatedWhenLogPresent() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metricsWithLog(200));
+    Map<String, Object> endpResp = (Map<String, Object>) ((Map<
+        String,
+        Object
+      >) entry.jsonPayload().get("endpoint")).get("response");
+    Map<String, String> headers = (Map<String, String>) endpResp.get("headers");
+    assertThat(headers).containsEntry("X-Backend-Trace", "trace-xyz");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void headersAbsentWhenNoLogPresent() {
+    GCloudLogEntry entry = mapper.map(GCloudTestSupport.metrics(200));
+    Map<String, Object> req = (Map<String, Object>) ((Map<String, Object>) entry
+        .jsonPayload()
+        .get("entrypoint")).get("request");
+    assertThat(req).doesNotContainKey("headers");
+    Map<String, Object> endpoint = (Map<String, Object>) entry
+      .jsonPayload()
+      .get("endpoint");
+    assertThat(endpoint).doesNotContainKey("request");
   }
 
   @Test

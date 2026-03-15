@@ -81,6 +81,38 @@ class ManagementApiHelper {
    */
   String createAndDeployApi(String name, String contextPath, String backendUrl)
     throws Exception {
+    return createAndDeployApi(name, contextPath, backendUrl, false);
+  }
+
+  /**
+   * Creates a V4 HTTP proxy API and fully deploys it, optionally enabling request/response logging.
+   * When {@code loggingEnabled} is {@code true} the API analytics block is configured to capture
+   * entrypoint and endpoint headers for both request and response phases.
+   *
+   * @param name           human-readable API name (must be unique across test runs)
+   * @param contextPath    gateway context path, e.g. {@code /gcloud-it-ok}
+   * @param backendUrl     upstream backend, e.g. {@code http://httpbin:8080/status/200}
+   * @param loggingEnabled whether to enable header/payload logging in the analytics block
+   */
+  String createAndDeployApi(
+    String name,
+    String contextPath,
+    String backendUrl,
+    boolean loggingEnabled
+  ) throws Exception {
+    String analyticsBlock = loggingEnabled
+      ? """
+      "analytics": {
+        "enabled": true,
+        "logging": {
+          "mode":    {"entrypoint": true, "endpoint": true},
+          "phase":   {"request": true,    "response": true},
+          "content": {"headers": true,    "payload": false}
+        }
+      },
+      """
+      : "";
+
     // Step 1: create API
     String apiBody = """
       {
@@ -89,6 +121,7 @@ class ManagementApiHelper {
         "definitionVersion": "V4",
         "type": "PROXY",
         "description": "Integration test API for gravitee-reporter-gcloud",
+        %s
         "listeners": [{
           "type": "HTTP",
           "paths": [{"path": "%s"}],
@@ -106,7 +139,7 @@ class ManagementApiHelper {
           }]
         }]
       }
-      """.formatted(name, contextPath, backendUrl);
+      """.formatted(name, analyticsBlock, contextPath, backendUrl);
 
     Response<JsonNode> createResp = api.createApi(body(apiBody)).execute();
     assertOk("createApi", createResp);

@@ -15,6 +15,10 @@
  */
 package io.gravitee.reporter.gcloud.mapper;
 
+import io.gravitee.gateway.api.http.HttpHeaders;
+import io.gravitee.reporter.api.common.Request;
+import io.gravitee.reporter.api.common.Response;
+import io.gravitee.reporter.api.v4.log.Log;
 import io.gravitee.reporter.api.v4.metric.Metrics;
 import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
 import io.gravitee.reporter.gcloud.writer.GCloudHttpRequest;
@@ -28,8 +32,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Maps a Gravitee v4 {@link Metrics} reportable to a {@link GCloudLogEntry} with a fully
- * populated {@code httpRequest} field, trace/span identifiers, and Gravitee-specific labels.
+ * Maps a Gravitee v4 {@link Metrics} reportable to a {@link GCloudLogEntry}.
+ *
+ * <p>The {@code jsonPayload} is structured as nested objects:
+ * <ul>
+ *   <li>{@code api} — API identity and type</li>
+ *   <li>{@code context} — subscription, application, plan, user, environment</li>
+ *   <li>{@code entrypoint.request/response} — what the client sent and received</li>
+ *   <li>{@code endpoint.request/response} — what the gateway sent to / received from the backend</li>
+ *   <li>{@code gateway} — internal latency breakdown</li>
+ *   <li>{@code error} — error key and message, if any</li>
+ * </ul>
+ *
+ * <p>The {@code httpRequest} field is also populated for Cloud Logging's native
+ * HTTP-request display (filtering by status, latency, etc.).
  */
 public class MetricsToLogEntryMapper {
 
@@ -51,9 +67,7 @@ public class MetricsToLogEntryMapper {
   public GCloudLogEntry map(Metrics metrics) {
     try {
       Map<String, String> labels = buildLabels(metrics);
-
       GCloudHttpRequest httpRequest = buildHttpRequest(metrics);
-
       GCloudSeverity severity = resolveSeverity(metrics.getStatus());
 
       String trace = buildTrace(metrics.getTransactionId());
@@ -66,37 +80,7 @@ public class MetricsToLogEntryMapper {
         ? Instant.ofEpochMilli(metrics.getTimestamp())
         : Instant.now();
 
-      Map<String, Object> payloadFields = new HashMap<>();
-      payloadFields.put(
-        "api_id",
-        metrics.getApiId() != null ? metrics.getApiId() : ""
-      );
-      payloadFields.put(
-        "api_name",
-        metrics.getApiName() != null ? metrics.getApiName() : ""
-      );
-      payloadFields.put("status", metrics.getStatus());
-      payloadFields.put(
-        "method",
-        metrics.getHttpMethod() != null ? metrics.getHttpMethod().name() : ""
-      );
-      payloadFields.put(
-        "uri",
-        metrics.getUri() != null ? metrics.getUri() : ""
-      );
-      payloadFields.put(
-        "path",
-        metrics.getPathInfo() != null ? sanitizePath(metrics.getPathInfo()) : ""
-      );
-      payloadFields.put(
-        "gateway_response_ms",
-        metrics.getGatewayResponseTimeMs()
-      );
-      payloadFields.put("gateway_latency_ms", metrics.getGatewayLatencyMs());
-      payloadFields.put(
-        "endpoint_response_ms",
-        metrics.getEndpointResponseTimeMs()
-      );
+      Map<String, Object> payload = buildPayload(metrics);
 
       return new GCloudLogEntry(
         severity,
@@ -104,7 +88,7 @@ public class MetricsToLogEntryMapper {
         trace,
         spanId,
         labels,
-        payloadFields,
+        payload,
         httpRequest
       );
     } catch (Exception e) {
@@ -117,6 +101,126 @@ public class MetricsToLogEntryMapper {
   static String sanitizePath(String path) {
     if (path == null) return null;
     return ID_PATTERN.matcher(path).replaceAll("{id}");
+  }
+
+  private Map<String, Object> buildPayload(Metrics m) {
+    Map<String, Object> p = new HashMap<>();
+
+    // ── api ──────────────────────────────────────────────────────────────────
+    Map<String, Object> api = new HashMap<>();
+    put(api, "id", m.getApiId());
+    put(api, "name", m.getApiName());
+    put(api, "type", m.getApiType());
+    p.put("api", api);
+
+    // ── context ──────────────────────────────────────────────────────────────
+    Map<String, Object> ctx = new HashMap<>();
+    put(ctx, "application", m.getApplicationId());
+    put(ctx, "plan", m.getPlanId());
+    put(ctx, "subscription", m.getSubscriptionId());
+    put(ctx, "client", m.getClientIdentifier());
+    put(ctx, "user", m.getUser());
+    put(ctx, "tenant", m.getTenant());
+    put(ctx, "zone", m.getZone());
+    if (!ctx.isEmpty()) p.put("context", ctx);
+
+    // ── log (headers + actual endpoint request, when API logging is enabled) ─
+    Log log = m.getLog();
+
+    // ── entrypoint ───────────────────────────────────────────────────────────
+    Map<String, Object> epReq = new HashMap<>();
+    if (m.getHttpMethod() != null) epReq.put(
+      "method",
+      m.getHttpMethod().name()
+    );
+    put(epReq, "uri", m.getUri());
+    if (m.getPathInfo() != null) {
+      epReq.put("path", sanitizePath(m.getPathInfo()));
+    }
+    put(epReq, "host", m.getHost());
+    put(epReq, "remote_ip", m.getRemoteAddress());
+    put(epReq, "local_ip", m.getLocalAddress());
+    put(epReq, "user_agent", m.getUserAgent());
+    put(epReq, "entrypoint_id", m.getEntrypointId());
+    if (m.getRequestContentLength() > 0) {
+      epReq.put("size", m.getRequestContentLength());
+    }
+    if (log != null && log.getEntrypointRequest() != null) {
+      putHeaders(epReq, log.getEntrypointRequest().getHeaders());
+    }
+
+    Map<String, Object> epResp = new HashMap<>();
+    epResp.put("status", m.getStatus());
+    if (m.getResponseContentLength() > 0) {
+      epResp.put("size", m.getResponseContentLength());
+    }
+    epResp.put("time_ms", m.getGatewayResponseTimeMs());
+    if (log != null && log.getEntrypointResponse() != null) {
+      putHeaders(epResp, log.getEntrypointResponse().getHeaders());
+    }
+
+    Map<String, Object> entrypoint = new HashMap<>();
+    entrypoint.put("request", epReq);
+    entrypoint.put("response", epResp);
+    p.put("entrypoint", entrypoint);
+
+    // ── endpoint ─────────────────────────────────────────────────────────────
+    Map<String, Object> endpoint = new HashMap<>();
+    put(endpoint, "url", m.getEndpoint());
+
+    if (log != null && log.getEndpointRequest() != null) {
+      Request endpReq = log.getEndpointRequest();
+      Map<String, Object> endpReqMap = new HashMap<>();
+      if (endpReq.getMethod() != null) {
+        endpReqMap.put("method", endpReq.getMethod().name());
+      }
+      put(endpReqMap, "uri", endpReq.getUri());
+      putHeaders(endpReqMap, endpReq.getHeaders());
+      if (!endpReqMap.isEmpty()) endpoint.put("request", endpReqMap);
+    }
+
+    Map<String, Object> endpResp = new HashMap<>();
+    endpResp.put("time_ms", m.getEndpointResponseTimeMs());
+    if (log != null && log.getEndpointResponse() != null) {
+      Response endpRespLog = log.getEndpointResponse();
+      if (endpRespLog.getStatus() > 0) {
+        endpResp.put("status", endpRespLog.getStatus());
+      }
+      putHeaders(endpResp, endpRespLog.getHeaders());
+    }
+    endpoint.put("response", endpResp);
+
+    p.put("endpoint", endpoint);
+
+    // ── gateway ──────────────────────────────────────────────────────────────
+    Map<String, Object> gateway = new HashMap<>();
+    gateway.put("latency_ms", m.getGatewayLatencyMs());
+    p.put("gateway", gateway);
+
+    // ── error ─────────────────────────────────────────────────────────────────
+    if (
+      (m.getErrorMessage() != null && !m.getErrorMessage().isBlank()) ||
+      (m.getErrorKey() != null && !m.getErrorKey().isBlank())
+    ) {
+      Map<String, Object> error = new HashMap<>();
+      put(error, "message", m.getErrorMessage());
+      put(error, "key", m.getErrorKey());
+      p.put("error", error);
+    }
+
+    return p;
+  }
+
+  /** Puts {@code value} into {@code map} only when non-null and non-blank. */
+  private static void put(Map<String, Object> map, String key, String value) {
+    if (value != null && !value.isBlank()) map.put(key, value);
+  }
+
+  /** Adds a {@code headers} sub-map when {@code headers} is non-null and non-empty. */
+  private static void putHeaders(Map<String, Object> map, HttpHeaders headers) {
+    if (headers == null) return;
+    Map<String, String> flat = headers.toSingleValueMap();
+    if (flat != null && !flat.isEmpty()) map.put("headers", flat);
   }
 
   private GCloudSeverity resolveSeverity(int status) {
@@ -198,20 +302,9 @@ public class MetricsToLogEntryMapper {
       labels
     );
     GCloudLabels.ifPresent(metrics.getPlanId(), "gravitee.plan", labels);
-    GCloudLabels.ifPresent(metrics.getEndpoint(), "gravitee.endpoint", labels);
     GCloudLabels.ifPresent(
-      String.valueOf(metrics.getGatewayResponseTimeMs()),
-      "gravitee.gateway_ms",
-      labels
-    );
-    GCloudLabels.ifPresent(
-      String.valueOf(metrics.getGatewayLatencyMs()),
-      "gravitee.latency_ms",
-      labels
-    );
-    GCloudLabels.ifPresent(
-      String.valueOf(metrics.getEndpointResponseTimeMs()),
-      "gravitee.endpoint_ms",
+      metrics.getSubscriptionId(),
+      "gravitee.subscription",
       labels
     );
     return labels;

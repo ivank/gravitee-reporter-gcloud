@@ -52,12 +52,13 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Override: BOM resolves gravitee-reporter-api to 1.35.1 (legacy v3).
-                 2.1.0 adds io.gravitee.reporter.api.v4.* types required at compile time. -->
+            <!-- 1.35.1 is what ships in the gateway runtime (apim-gateway:4.9.x).
+                 It already contains io.gravitee.reporter.api.v4.* types.
+                 Pinning to this version prevents NoSuchMethodError at runtime. -->
             <dependency>
                 <groupId>io.gravitee.reporter</groupId>
                 <artifactId>gravitee-reporter-api</artifactId>
-                <version>2.1.0</version>
+                <version>1.35.1</version>
             </dependency>
             <dependency>
                 <groupId>org.testcontainers</groupId>

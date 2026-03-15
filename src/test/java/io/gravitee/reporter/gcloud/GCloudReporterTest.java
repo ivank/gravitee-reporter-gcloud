@@ -88,13 +88,13 @@ class GCloudReporterTest {
 
   @Test
   void messageMetricsIsHandledWhenEnabled() {
-    assertThat(reporter.canHandle(new MessageMetrics())).isTrue();
+    assertThat(reporter.canHandle(MessageMetrics.builder().build())).isTrue();
   }
 
   @Test
   void messageMetricsIsNotHandledWhenDisabled() {
     when(cfg.isReportMessageMetrics()).thenReturn(false);
-    assertThat(reporter.canHandle(new MessageMetrics())).isFalse();
+    assertThat(reporter.canHandle(MessageMetrics.builder().build())).isFalse();
   }
 
   @Test
