@@ -77,88 +77,44 @@ public class GCloudReporterConfiguration {
     return enabled;
   }
 
-  public void setEnabled(boolean enabled) {
-    this.enabled = enabled;
-  }
-
   public String getProjectId() {
     return projectId;
-  }
-
-  public void setProjectId(String projectId) {
-    this.projectId = projectId;
   }
 
   public String getLogName() {
     return logName;
   }
 
-  public void setLogName(String logName) {
-    this.logName = logName;
-  }
-
   public String getResourceType() {
     return resourceType;
-  }
-
-  public void setResourceType(String resourceType) {
-    this.resourceType = resourceType;
   }
 
   public String getCredentialsFile() {
     return credentialsFile;
   }
 
-  public void setCredentialsFile(String credentialsFile) {
-    this.credentialsFile = credentialsFile;
-  }
-
   public boolean isCaptureErrors() {
     return captureErrors;
-  }
-
-  public void setCaptureErrors(boolean captureErrors) {
-    this.captureErrors = captureErrors;
   }
 
   public boolean isReportHealthChecks() {
     return reportHealthChecks;
   }
 
-  public void setReportHealthChecks(boolean reportHealthChecks) {
-    this.reportHealthChecks = reportHealthChecks;
-  }
-
   public boolean isReportLogs() {
     return reportLogs;
-  }
-
-  public void setReportLogs(boolean reportLogs) {
-    this.reportLogs = reportLogs;
   }
 
   public boolean isReportMessageMetrics() {
     return reportMessageMetrics;
   }
 
-  public void setReportMessageMetrics(boolean reportMessageMetrics) {
-    this.reportMessageMetrics = reportMessageMetrics;
-  }
-
   public boolean isReportMonitor() {
     return reportMonitor;
   }
 
-  public void setReportMonitor(boolean reportMonitor) {
-    this.reportMonitor = reportMonitor;
-  }
-
   public String getTracePrefix() {
     return tracePrefix;
-  }
-
-  public void setTracePrefix(String tracePrefix) {
-    this.tracePrefix = tracePrefix;
   }
 
   public Map<String, String> getResourceLabels() {
@@ -169,15 +125,7 @@ public class GCloudReporterConfiguration {
     return batchSize;
   }
 
-  public void setBatchSize(int batchSize) {
-    this.batchSize = batchSize;
-  }
-
   public int getFlushIntervalSeconds() {
     return flushIntervalSeconds;
-  }
-
-  public void setFlushIntervalSeconds(int flushIntervalSeconds) {
-    this.flushIntervalSeconds = flushIntervalSeconds;
   }
 }

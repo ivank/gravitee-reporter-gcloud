@@ -23,8 +23,8 @@ import io.gravitee.reporter.gcloud.config.GCloudReporterConfiguration;
 import io.gravitee.reporter.gcloud.writer.GCloudLogEntry;
 import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,16 +59,10 @@ public class EndpointStatusToLogEntryMapper {
         ? GCloudSeverity.INFO
         : GCloudSeverity.ERROR;
 
-      Map<String, Object> payload = new HashMap<>();
-      payload.put("api_id", status.getApi() != null ? status.getApi() : "");
-      payload.put(
-        "api_name",
-        status.getApiName() != null ? status.getApiName() : ""
-      );
-      payload.put(
-        "endpoint",
-        status.getEndpoint() != null ? status.getEndpoint() : ""
-      );
+      Map<String, Object> payload = new java.util.HashMap<>();
+      payload.put("api_id", Objects.toString(status.getApi(), ""));
+      payload.put("api_name", Objects.toString(status.getApiName(), ""));
+      payload.put("endpoint", Objects.toString(status.getEndpoint(), ""));
       payload.put("available", status.isAvailable());
       payload.put("response_time_ms", status.getResponseTime());
       if (status.getSteps() != null) {
@@ -80,21 +74,27 @@ public class EndpointStatusToLogEntryMapper {
             .map(s ->
               Map.of(
                 "name",
-                s.getName() != null ? s.getName() : "",
+                Objects.toString(s.getName(), ""),
                 "success",
                 s.isSuccess(),
                 "message",
-                s.getMessage() != null ? s.getMessage() : ""
+                Objects.toString(s.getMessage(), "")
               )
             )
             .toList()
         );
       }
 
-      Map<String, String> labels = new HashMap<>();
-      GCloudLabels.ifPresent(status.getApi(), "gravitee.api_id", labels);
-      GCloudLabels.ifPresent(status.getApiName(), "gravitee.api_name", labels);
-      GCloudLabels.ifPresent(status.getEndpoint(), "gravitee.endpoint", labels);
+      var labels = new java.util.LinkedHashMap<>(
+        GCloudLabels.of(
+          "gravitee.api_id",
+          status.getApi(),
+          "gravitee.api_name",
+          status.getApiName(),
+          "gravitee.endpoint",
+          status.getEndpoint()
+        )
+      );
       labels.put("gravitee.available", String.valueOf(status.isAvailable()));
 
       return Optional.of(

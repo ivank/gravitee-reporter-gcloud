@@ -27,6 +27,7 @@ import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,19 +51,14 @@ public class LogToLogEntryMapper {
   public GCloudLogEntry map(Log logReportable) {
     try {
       Map<String, Object> payload = new HashMap<>();
-      payload.put(
-        "api_id",
-        logReportable.getApiId() != null ? logReportable.getApiId() : ""
-      );
+      payload.put("api_id", Objects.toString(logReportable.getApiId(), ""));
       payload.put(
         "request_id",
-        logReportable.getRequestId() != null ? logReportable.getRequestId() : ""
+        Objects.toString(logReportable.getRequestId(), "")
       );
       payload.put(
         "client_identifier",
-        logReportable.getClientIdentifier() != null
-          ? logReportable.getClientIdentifier()
-          : ""
+        Objects.toString(logReportable.getClientIdentifier(), "")
       );
       payload.put(
         "entrypoint_request",
@@ -81,21 +77,13 @@ public class LogToLogEntryMapper {
         responsePayload(logReportable.getEndpointResponse())
       );
 
-      Map<String, String> labels = new HashMap<>();
-      GCloudLabels.ifPresent(
-        logReportable.getApiId(),
+      var labels = GCloudLabels.of(
         "gravitee.api_id",
-        labels
-      );
-      GCloudLabels.ifPresent(
-        logReportable.getRequestId(),
+        logReportable.getApiId(),
         "gravitee.request_id",
-        labels
-      );
-      GCloudLabels.ifPresent(
-        logReportable.getClientIdentifier(),
+        logReportable.getRequestId(),
         "gravitee.client_id",
-        labels
+        logReportable.getClientIdentifier()
       );
 
       String trace = (logReportable.getRequestId() != null &&

@@ -25,6 +25,7 @@ import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,17 +48,11 @@ public class MessageMetricsToLogEntryMapper {
   public GCloudLogEntry map(MessageMetrics metrics) {
     try {
       Map<String, Object> payload = new HashMap<>();
-      payload.put(
-        "api_id",
-        metrics.getApiId() != null ? metrics.getApiId() : ""
-      );
-      payload.put(
-        "request_id",
-        metrics.getRequestId() != null ? metrics.getRequestId() : ""
-      );
+      payload.put("api_id", Objects.toString(metrics.getApiId(), ""));
+      payload.put("request_id", Objects.toString(metrics.getRequestId(), ""));
       payload.put(
         "connector_id",
-        metrics.getConnectorId() != null ? metrics.getConnectorId() : ""
+        Objects.toString(metrics.getConnectorId(), "")
       );
       payload.put(
         "connector_type",
@@ -71,19 +66,18 @@ public class MessageMetricsToLogEntryMapper {
         payload.put("gateway_latency_ms", metrics.getGatewayLatencyMs());
       }
 
-      Map<String, String> labels = new HashMap<>();
-      GCloudLabels.ifPresent(metrics.getApiId(), "gravitee.api_id", labels);
-      GCloudLabels.ifPresent(
-        metrics.getConnectorId(),
-        "gravitee.connector_id",
-        labels
-      );
-      if (metrics.getConnectorType() != null) {
-        labels.put(
+      var labels = new java.util.LinkedHashMap<>(
+        GCloudLabels.of(
+          "gravitee.api_id",
+          metrics.getApiId(),
+          "gravitee.connector_id",
+          metrics.getConnectorId(),
           "gravitee.connector_type",
-          metrics.getConnectorType().getLabel()
-        );
-      }
+          metrics.getConnectorType() != null
+            ? metrics.getConnectorType().getLabel()
+            : null
+        )
+      );
 
       String trace = (metrics.getRequestId() != null &&
           !metrics.getRequestId().isBlank())

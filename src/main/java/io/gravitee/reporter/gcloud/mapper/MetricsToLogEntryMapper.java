@@ -30,6 +30,7 @@ import io.gravitee.reporter.gcloud.writer.GCloudSeverity;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -296,20 +297,17 @@ public class MetricsToLogEntryMapper {
   }
 
   private Map<String, String> buildLabels(Metrics metrics) {
-    Map<String, String> labels = new HashMap<>();
-    GCloudLabels.ifPresent(metrics.getApiId(), "gravitee.api_id", labels);
-    GCloudLabels.ifPresent(metrics.getApiName(), "gravitee.api_name", labels);
-    GCloudLabels.ifPresent(
-      metrics.getApplicationId(),
+    return GCloudLabels.of(
+      "gravitee.api_id",
+      metrics.getApiId(),
+      "gravitee.api_name",
+      metrics.getApiName(),
       "gravitee.application",
-      labels
-    );
-    GCloudLabels.ifPresent(metrics.getPlanId(), "gravitee.plan", labels);
-    GCloudLabels.ifPresent(
-      metrics.getSubscriptionId(),
+      metrics.getApplicationId(),
+      "gravitee.plan",
+      metrics.getPlanId(),
       "gravitee.subscription",
-      labels
+      metrics.getSubscriptionId()
     );
-    return labels;
   }
 }

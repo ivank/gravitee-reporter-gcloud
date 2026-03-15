@@ -9,7 +9,7 @@ the Cloud Logging console, usable in log-based metrics, and compatible with Clou
 | Gravitee event | GCL fields populated |
 |---|---|
 | HTTP request metrics | `httpRequest` (method, url, status, sizes, userAgent, remoteIp, latency), `trace`, `spanId`, `severity` (INFO / WARNING / ERROR), `labels` |
-| Full request/response logs | `severity=DEBUG`, JSON payload with truncated bodies |
+| Full request/response logs | `severity=DEBUG`, JSON payload with headers |
 | Endpoint health-check transitions | `severity=ERROR` (down) or `INFO` (recovered) |
 | Async message metrics | `severity=INFO`, JSON payload with counts |
 
@@ -46,7 +46,7 @@ reporters:
     enabled: true
 
     # Google Cloud project ID.
-    # Defaults to the GOOGLE_CLOUD_PROJECT environment variable or the GCE metadata server.
+    # Falls back to the GOOGLE_CLOUD_PROJECT environment variable.
     projectId: my-gcp-project
 
     # Cloud Logging log name (the part after "projects/<project>/logs/")
@@ -56,8 +56,6 @@ reporters:
     # Use "global" for non-GCP deployments; on GKE use "k8s_container".
     resource:
       type: global
-      # labels:
-      #   project_id: my-gcp-project
 
     # Path to a service-account JSON key file.
     # Omit to use Application Default Credentials (ADC).
@@ -69,7 +67,7 @@ reporters:
     # Write a log entry on each endpoint health-check state transition. Default: true
     reportHealthChecks: true
 
-    # Write a log entry with full request/response bodies (high volume). Default: false
+    # Write a log entry with full request/response headers (high volume). Default: false
     reportLogs: false
 
     # Write a log entry for async message metrics. Default: true
@@ -80,6 +78,12 @@ reporters:
 
     # Optional prefix for the trace field, e.g. projects/my-project/traces/
     # tracePrefix: projects/my-gcp-project/traces/
+
+    # Maximum number of log entries per batch sent to Cloud Logging. Default: 500
+    batchSize: 500
+
+    # How often (seconds) to flush a partial batch. Default: 5
+    flushIntervalSeconds: 5
 ```
 
 ---
@@ -111,8 +115,7 @@ Grant the service account `roles/logging.logWriter` on the GCP project.
 
 ## Running integration tests
 
-Integration tests start a full Gravitee APIM stack via Testcontainers and write real log
-entries to Cloud Logging in the `fh-test-414003` project.
+Integration tests write real log entries to Cloud Logging in the configured project.
 
 ### Local development
 
@@ -124,7 +127,7 @@ gcloud auth application-default login
 mvn clean verify -Pintegration-test
 ```
 
-`GOOGLE_CLOUD_PROJECT=fh-test-414003` is pre-filled in `local.properties` (git-ignored).
+`GOOGLE_CLOUD_PROJECT` is pre-filled in `local.properties` (git-ignored).
 Copy `local.properties.template` to override defaults or add a service-account key path.
 
 ### CI/CD (GitHub Actions)
@@ -133,7 +136,7 @@ Set two repository secrets:
 
 | Secret | Value |
 |---|---|
-| `GCP_PROJECT_ID` | `fh-test-414003` |
+| `GCP_PROJECT_ID` | Your GCP project ID |
 | `GCP_CREDENTIALS_JSON` | Contents of the service-account JSON key |
 
 The workflow writes the JSON to a temp file, sets `GOOGLE_APPLICATION_CREDENTIALS`, and runs
@@ -148,6 +151,9 @@ Example log entry for a successful request (viewed in Cloud Logging):
 ```json
 {
   "severity": "INFO",
+  "timestamp": "2026-03-15T10:00:00.042Z",
+  "trace": "projects/my-project/traces/txn-aabbccdd",
+  "spanId": "req-11223344",
   "httpRequest": {
     "requestMethod": "GET",
     "requestUrl": "http://gateway.example.com/api/v1/users/42",
@@ -155,31 +161,54 @@ Example log entry for a successful request (viewed in Cloud Logging):
     "responseSize": "1024",
     "userAgent": "curl/8.1.2",
     "remoteIp": "10.0.0.1",
-    "latency": "0.042s"
+    "latency": "0.042000000s"
   },
-  "trace": "projects/my-project/traces/txn-aabbccdd",
-  "spanId": "req-11223344",
   "labels": {
     "gravitee.api_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
     "gravitee.api_name": "My API",
     "gravitee.plan": "plan-id",
     "gravitee.application": "app-id",
-    "gravitee.endpoint": "https://backend.example.com",
-    "gravitee.gateway_ms": "42",
-    "gravitee.latency_ms": "5",
-    "gravitee.endpoint_ms": "37"
+    "gravitee.subscription": "sub-id"
   },
   "jsonPayload": {
-    "api_id": "3fa85f64-...",
-    "status": 200,
-    "method": "GET",
-    "uri": "/api/v1/users/42",
-    "gateway_response_ms": 42,
-    "gateway_latency_ms": 5,
-    "endpoint_response_ms": 37
+    "api": {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "name": "My API",
+      "type": "PROXY"
+    },
+    "context": {
+      "application": "app-id",
+      "plan": "plan-id",
+      "subscription": "sub-id"
+    },
+    "entrypoint": {
+      "request": {
+        "method": "GET",
+        "uri": "/api/v1/users/42",
+        "path": "/api/v1/users/{id}",
+        "remote_ip": "10.0.0.1",
+        "user_agent": "curl/8.1.2"
+      },
+      "response": {
+        "status": 200,
+        "time_ms": 42
+      }
+    },
+    "endpoint": {
+      "url": "https://backend.example.com",
+      "response": {
+        "time_ms": 37
+      }
+    },
+    "gateway": {
+      "latency_ms": 5
+    }
   }
 }
 ```
+
+Path segments that are numeric IDs or UUIDs are automatically replaced with `{id}` in the
+`entrypoint.request.path` field to reduce log-based metric cardinality.
 
 ---
 
@@ -188,11 +217,11 @@ Example log entry for a successful request (viewed in Cloud Logging):
 ```sh
 mvn clean package -DskipTests          # produces target/gravitee-reporter-gcloud-*.zip
 mvn test                               # unit tests only
-mvn verify -Pintegration-test          # full stack integration tests
+mvn verify -Pintegration-test          # integration tests (requires ADC)
 ```
 
 ---
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

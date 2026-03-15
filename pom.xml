@@ -182,9 +182,9 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.17.2</version>
-            <scope>test</scope>
+            <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.awaitility</groupId>
             <artifactId>awaitility</artifactId>
@@ -229,6 +229,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <release>21</release>
+
                 </configuration>
             </plugin>
 
@@ -302,6 +303,12 @@
     <profiles>
         <profile>
             <id>integration-test</id>
+            <!-- Seed from env var so the enforcer and failsafe see it even without local.properties.
+                 local.properties (loaded by properties-maven-plugin at initialize phase) overrides these. -->
+            <properties>
+                <GOOGLE_CLOUD_PROJECT>${env.GOOGLE_CLOUD_PROJECT}</GOOGLE_CLOUD_PROJECT>
+                <GOOGLE_APPLICATION_CREDENTIALS>${env.GOOGLE_APPLICATION_CREDENTIALS}</GOOGLE_APPLICATION_CREDENTIALS>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
