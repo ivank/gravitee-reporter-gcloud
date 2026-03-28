@@ -34,8 +34,7 @@ import org.slf4j.LoggerFactory;
  * Thin client for the Google Cloud Logging API used to verify that the reporter
  * wrote the expected log entries during integration tests.
  *
- * <p>Mirrors the pattern of {@code SentryApiClient} from gravitee-reporter-sentry:
- * poll with Awaitility until at least one entry is found or timeout expires.
+ * <p>Polls with Awaitility until at least one entry is found or timeout expires.
  */
 class GCloudLoggingClient implements AutoCloseable {
 

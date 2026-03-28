@@ -37,5 +37,5 @@ jobs:
       - name: Upload ZIP to GitHub Release
         run: |
           gh release upload ${{ github.event.release.tag_name }} \
-            target/gravitee-reporter-sentry-${{ steps.version.outputs.version }}.zip \
+            target/gravitee-reporter-gcloud-${{ steps.version.outputs.version }}.zip \
             --clobber
